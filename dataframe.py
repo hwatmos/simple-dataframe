@@ -21,7 +21,7 @@ class DataFrame:
             self.data = [row for row in csv_reader]
 
     def to_csv(self, file_path):
-        with open(file_path, 'w', newline='') as file:: # newline????
+        with open(file_path, 'w', newline='') as file: # newline????
             csv_writer = csv.writer(file) # https://docs.python.org/3/library/csv.html
             csv_writer.writerow(self.columns)
             csv_writer.writerows(self.data)
@@ -39,11 +39,11 @@ class DataFrame:
                 row[col_idx] = value[i]
         elif isinstance(key, int):
             self.data[key] = value
-
+        
     def __len__(self):
         return len(self.data) # Could make it more efficient by keeping track of length throughout ops
     
-    def __repr__:
+    def __repr__(self):
         # Human readable representation or informal, string, representation of the dataframe
         return str(self.data)
 
