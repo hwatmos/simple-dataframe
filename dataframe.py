@@ -52,6 +52,41 @@ class DataFrame:
     def __iter__(self):
         return iter(self.data)
 
+    def rows(self,start_row=0,nrows=5,show_index=True):
+        """Print nrows first rows of data
+        """
+        display_data = [] # each element to represent a row (instead of col as is in self.data
+        col_width = 10
+        prefix_extra_len = len(str(start_row+nrows))-1
+        prefix_header = "| " # prefix to print and the beginning of each row
+        prefix_line = "--"
+        prefix_data = "f'| '"
+        # Prepare prefix
+        if show_index:
+            prefix_header = f"{'i':>{1+prefix_extra_len}} |"
+            prefix_line = "-"*(3+prefix_extra_len)
+            prefix_data="f'{data_idx:>{1+prefix_extra_len}} |'"
+        # Slice top nrows
+        for col in df:
+            col = list(it.islice(col,start_row,start_row+nrows))
+            display_data.append(col)
+        # Transpose for  printing row by row
+        display_data = list(zip(*display_data))
+        # Print header
+        print(prefix_header,end=' ')
+        for c in self.columns:
+            print(f"{c:^{col_width}}",end = ' | ')
+        print("\n"+prefix_line+("-"*len(self.columns)*13))
+        # Print rows
+        for r in range(nrows):
+            data_idx = r + start_row
+            print(eval(prefix_data),end=' ')
+            for c in display_data[r]:
+                print(f"{c:>{col_width}}",end = ' | ')
+            print('')
+        # Return descriptive string
+        return f"DataFrame with {len(self.columns)} columns and {len(self.data[0])} rows"
+
     def apply(self, func, column):
         col_idx = self.columns.index(column)
         for row in self.data:
