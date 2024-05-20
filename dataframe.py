@@ -1,4 +1,29 @@
 import csv
+import operator
+
+class DataColumn:
+    """
+    Column of Simplistic DataFrame
+    """
+    def __init__(self, data):
+        self.data = data
+
+    def __add__(self, other):
+        if not isinstance(other, DataColumn):
+            raise TypeError("Operands must be of the type 'DataColumn'")
+        if len(self.data) != len(other.data):
+            raise ValueError("Columns have incompatible lengths")
+        return DataColumn([operator.add(x, y) for x, y in zip(self.data, other.data)])
+
+    def __repr__(self):
+        print(repr(self.data))
+        return "Column"
+
+    def as_list(self):
+        return self.data
+
+    def __iter__(self):
+        return iter(self.data)
 
 class DataFrame:
     '''
@@ -29,18 +54,31 @@ class DataFrame:
             csv_writer.writerows(self.data)
 
     def __getitem__(self, key):
-        if isinstance(key, str):
-            return [row[self.columns.index(key)] for row in self.data]
-        elif isinstance(key, int):
-            return self.data[key]
+        if isinstance(key, int):
+            return DataColumn(self.data[key])
+        elif isinstance(key, str):
+            try:
+                col_idx = self.columns.index(key)
+                return DataColumn(self.data[col_idx])
+            except ValueError:
+                raise KeyError(f"Column '{key}' not found")
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key, new_col_values):
         if isinstance(key, str):
             col_idx = self.columns.index(key)
-            for i, row in enumerate(self.data):
-                row[col_idx] = value[i]
         elif isinstance(key, int):
-            self.data[key] = value
+            col_idx = key
+        else:
+            raise TypeError("Key must be of the types 'Str' or 'Int'")
+        if isinstance(new_col_values, DataColumn):
+            if len(self.data[col_idx]) != len(new_col_values.as_list()):
+                raise ValueError("Columns have incompatible lengths")
+            self.data[col_idx] = new_col_values.as_list()
+        elif isinstance(new_col_values, list):
+            if len(self.data[col_idx]) != len(new_col_values):
+                raise ValueError("Columns have incompatible lengths")
+            self.data[col_idx] = new_col_values
+        return
         
     def __len__(self):
         return len(self.data) # Could make it more efficient by keeping track of length throughout ops
