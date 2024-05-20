@@ -35,9 +35,23 @@ class DataFrame:
     to_csv
     apply
     '''
-    def __init__(self):
+    def __init__(self,data=None):
         self.data = []
         self.columns = []
+        values_len = -1
+        if data==None:
+            return
+        elif isinstance(data,dict):
+            for key, values in data.items():
+                if values_len == -1:
+                    values_len = len(values)
+                else:
+                    if len(values) != values_len:
+                        raise ValueError("Columns have incompatible lengths")
+                self.columns.append(key)
+                self.data.append(values)
+        else:
+            raise TypeError("Data must be of the type'Dict'")
 
     def read_csv(self, file_path):
         with open(file_path, 'r', newline='') as file:
