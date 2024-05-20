@@ -16,7 +16,7 @@ class DataFrame:
 
     def read_csv(self, file_path):
         with open(file_path, 'r', newline='') as file:
-            csv_reader = csv.reader(file) # https://docs.python.org/3/library/csv.html
+            csv_reader = csv.reader(file,skipinitialspace=True) # https://docs.python.org/3/library/csv.html
             self.columns = next(csv_reader)
             self.data = [row for row in csv_reader]
 
