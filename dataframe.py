@@ -47,7 +47,7 @@ class DataFrame:
     
     def __repr__(self):
         # Human readable representation or informal, string, representation of the dataframe
-        return str(self.data)
+        return str(self.rows(start_row=0,nrows=5,show_index=True)) #str(list(self.data))
 
     def __iter__(self):
         return iter(self.data)
