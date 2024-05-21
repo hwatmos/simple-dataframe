@@ -234,6 +234,8 @@ class DataColumn:
                 raise ValueError(f"Cannon cast {val} to {new_type}: {e}")
         return DataColumn(casted_values)
 
+    #def isna(self):
+        
 class DataFrame:
     '''
     Simplistic DataFrame
