@@ -2,6 +2,7 @@ import csv
 import operator
 import itertools as it
 import datetime
+import statistics
 
 def element_wise_comparison(func, list_1, list_2):
     """Compare list_1 and list_2 using func and return a list of Bool
@@ -112,6 +113,63 @@ class DataColumn:
 
     def apply(self, func):
         return DataColumn(list(map(func,self.data)))
+
+    def min(self):
+        return min(self.data)
+
+    def max(self):
+        return max(self.data)
+
+    def mean(self):
+        return statistics.mean(self.data)
+
+    def median(self):
+        return statistics.median(self.data)
+
+    def median_low(self):
+        return statistics.median_low(self.data)
+
+    def median_high(self):
+        return statistics.median_high(self.data)
+
+    def mode(self):
+        return statistics.mode(self.data)
+
+    def std(self):
+        return statistics.stdev(self.data)
+
+    def var(self):
+        return statistics.variance(self.data)
+
+    def pstd(self):
+        return statistics.pstdev(self.data)
+
+    def pvariance(self):
+        return statistics.pvariance(self.data)
+
+    def cov(self,other):
+        if isinstance(other, DataColumn):
+            return statistics.covariance(self.data,other.data)
+        else:
+            raise TypeError("Can only compare to another DataColumn")
+
+    def cor(self,other):
+        if isinstance(other, DataColumn):
+            return statistics.correlation(self.data,other.data)
+        else:
+            raise TypeError("Can only compare to another DataColumn")
+
+    def lr(self,other):
+        """Linear regression against another column.
+
+        Regress this column on another column and return slope and intercept.
+
+        Returns slope, intercept
+        """
+        if isinstance(other, DataColumn):
+            return statistics.linear_regression(other.data,self.data)
+        else:
+            raise TypeError("Can only compare to another DataColumn")
 
 class DataFrame:
     '''
