@@ -35,6 +35,40 @@ def element_wise_comparison(func, list_1, list_2):
     else:
         raise TypeError("Can only compare against the types 'Int,' 'Float,' 'Str,' or 'List'")
 
+class ColumnProperties:
+    def __init__(self,data=None):
+        if data==None:
+            return
+        elif isinstance(data, dict):
+            for attr_name, attr_val in data.items():
+                setattr(self, attr_name, attr_val)
+        else:
+            raise TypeError("ColumnProperties data parameter must be of the type 'Dict'")
+
+    def add_properties(self, data):
+        if isinstance(data, dict):
+            for attr_name, attr_val in data.items():
+                setattr(self, attr_name, attr_val)
+        else:
+            raise TypeError("ColumnProperties data parameter must be of the type 'Dict'")
+
+    def get_property(self, key):
+        try:
+            return self.key
+        except:
+            raise ValueError(f"Property {key} not found")
+
+class Category:
+    def __init__(self,data):
+        self.data = data
+        return None
+        
+    def __repr__(self):
+        return self.data
+        
+    def __format__(self,fmt):
+        return f"{self.data:{fmt}}"
+
 class DataColumn:
     """
     Column of Simplistic DataFrame
@@ -204,18 +238,25 @@ class DataFrame:
     '''
     Simplistic DataFrame
 
+    Properties that must be maintained as columns are added, deleted, or moved:
+    self.data
+    self.columns
+    self.col_properties
+
     Functions
     ---------
     read_csv
     to_csv
     apply
     '''
-    def __init__(self,data=None):
+    def __init__(self,data=None,dtypes=None):
+        dtypes_provided = isinstance(dtypes,dict)
         self.data = []
         self.columns = []
+        self.col_properties = []
         values_len = -1
         if data==None:
-            return
+            pass
         elif isinstance(data,dict):
             for key, values in data.items():
                 if values_len == -1:
@@ -225,8 +266,12 @@ class DataFrame:
                         raise ValueError("Columns have incompatible lengths")
                 self.columns.append(key)
                 self.data.append(values)
+                # Check if dtypes were given:
+                if dtypes_provided:
+                    self.col_properties.append(ColumnProperties({'dtype':dtypes[key]}))
         else:
             raise TypeError("Data must be of the type'Dict'")
+        return
 
     def read_csv(self, file_path):
         with open(file_path, 'r', newline='') as file:
@@ -237,7 +282,10 @@ class DataFrame:
                 processed_row = [None if value == '' else value for value in row]
                 data.append(processed_row)
             self.data = list(zip(*data))
-            del data;
+        
+        del data;
+        self.col_properties = [ColumnProperties() for i in range(len(self.columns))]
+        return
 
     def to_csv(self, file_path):
         with open(file_path, 'w', newline='') as file: # newline????
@@ -298,12 +346,14 @@ class DataFrame:
         display_data = [] # each element to represent a row (instead of col as is in self.data
         col_width = 10
         prefix_extra_len = len(str(start_row+nrows))-1
-        prefix_header = "| " # prefix to print and the beginning of each row
+        prefix_header1 = "| " 
+        prefix_header2 = "| "
         prefix_line = "--"
         prefix_data = "f'| '"
         # Prepare prefix
         if show_index:
-            prefix_header = f"{'i':>{1+prefix_extra_len}} |"
+            prefix_header1 = f"{' ':>{1+prefix_extra_len}} |"
+            prefix_header2 = f"{'i':>{1+prefix_extra_len}} |"
             prefix_line = "-"*(3+prefix_extra_len)
             prefix_data="f'{data_idx:>{1+prefix_extra_len}} |'"
         # Slice rows
@@ -313,23 +363,44 @@ class DataFrame:
         # Transpose for  printing row by row
         display_data = list(zip(*display_data))
         # Print header
-        print(prefix_header,end=' ')
+        ## Row 1 (short name)
+        print(prefix_header1,end=' ')
         for c in self.columns:
             print(f"{c:^{col_width}}",end = ' | ')
+        ## Row 2 (dtypes)
+        print("\n"+prefix_header2,end=' ')
+        for c in self.col_properties:
+            try:
+                dtype = c.dtype
+                text_to_print = ""
+                if dtype==str:
+                    text_to_print = pretty_string(f"{'str':>{col_width}}",'magenta')
+                elif dtype==int or dtype==float:
+                    text_to_print = pretty_string(f"{'num':>{col_width}}",'green')
+                elif dtype==Category:
+                    text_to_print = pretty_string(f"{'C':>{col_width}}",'yellow') ########################### Need to specify whether dummiefied already or not and how many cats
+                else:
+                    text_to_print = pretty_string(f"{'UNK':>{col_width}}",'red')
+                print(text_to_print,end = ' | ')
+            except:
+                pass
+        # Break line
         print("\n"+prefix_line+("-"*len(self.columns)*13))
         # Print rows, one col at a time
         for r in range(len(display_data)):
             data_idx = r + start_row
             print(eval(prefix_data),end=' ')
             for c in display_data[r]:
-                c_print = "" # text to print for the current column, formatted below
+                text_to_print = "" # text to print for the current column, formatted below
                 if isinstance(c,float):
-                    c_print=f"{c:>{col_width},.1f}"
+                    text_to_print=f"{c:>{col_width},.1f}"
                 elif c==None:
-                    c_print = pretty_string(f"{'--':>{col_width}}",'red')
+                    text_to_print = pretty_string(f"{'--':>{col_width}}",'red')
+                elif isinstance(c,Category):
+                    text_to_print=f"{c:>{col_width}}"
                 else:
-                    c_print=f"{c:>{col_width}}"
-                print(c_print,end = ' | ')
+                    text_to_print=f"{c[:col_width]:>{col_width}}"
+                print(text_to_print,end = ' | ')
             print('')
         # Return descriptive string
         return f"DataFrame with {len(self.columns)} columns and {len(self.data[0])} rows"
@@ -340,8 +411,10 @@ class DataFrame:
         Currently, only accepts dict.
         """
         if isinstance(types, dict):
-            for col_lab, col_type in dict.items():
-                return DataColumn(self[col_lab].set_type(col_type))
+            for col_name, col_type in types.items():
+                self[col_name] = self[col_name].set_type(col_type)
+                col_idx = self.columns.index(col_name)
+                self.col_properties[col_idx].add_properties({'dtype':col_type})
         else:
             raise TypeError("Types param must be of the type 'Dict'")
 
