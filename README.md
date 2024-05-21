@@ -20,7 +20,8 @@ The main means of accomplishing a simplified data science workflow is by designi
   * This way don't need to display all dummies, can just display the original column with an indicator that it has been either "one-hot'ed" or "dummied" etc.
 * Change column types easily.
 * Column.isna()
-* 
+* Check NAs
+* Replace NAs with replacement rules
  
 **Specific to strings**
 * Common operations on strings that pandas makes accessible via .str?
@@ -33,7 +34,7 @@ The main means of accomplishing a simplified data science workflow is by designi
 **Loosely or un-defined**
 * Simplify the common task of specifying dict of col labels and value types.
 * Get unique values. I use this a lot so maybe just implement functionality like df.col_name and it will print out unique if it is a categorical col?
-
+* Need a simplified mechanism for group by. I do this all the time, maybe specify each column as either Dimension or Measure? Then I can create method for collapsing dimensions but measure recalc may atipp be dependent on other measures and even in thr dimensions...
 
 # Research
 
