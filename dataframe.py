@@ -63,6 +63,9 @@ class DataColumn:
     def __iter__(self):
         return iter(self.data)
 
+    def apply(self, func):
+        return DataColumn(list(map(func,self.data)))
+
 class DataFrame:
     '''
     Simplistic DataFrame
