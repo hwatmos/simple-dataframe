@@ -232,7 +232,7 @@ class DataColumn:
                 casted_values.append(casted_val)
             except (TypeError, ValueError) as e:
                 raise ValueError(f"Cannon cast {val} to {new_type}: {e}")
-        return casted_values
+        return DataColumn(casted_values)
 
 class DataFrame:
     '''
