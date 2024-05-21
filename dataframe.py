@@ -175,6 +175,7 @@ class DataColumn:
         """Linear regression against another column.
 
         Regress this column on another column and return slope and intercept.
+        https://docs.python.org/3/library/statistics.html
 
         Returns slope, intercept
         """
