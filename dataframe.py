@@ -4,6 +4,18 @@ import itertools as it
 import datetime
 import statistics
 
+def pretty_string(string,color):
+    """Accepted colors: red, green, yellow, blue, magenta, cyan"""
+    colors_dict = {
+        'red':31,
+        'green':32,
+        'yellow':33,
+        'blue':34,
+        'magenta':35,
+        'cyan':36,
+    }
+    return f"\033[{colors_dict[color]}m{string}\033[0m"
+
 def element_wise_comparison(func, list_1, list_2):
     """Compare list_1 and list_2 using func and return a list of Bool
 
