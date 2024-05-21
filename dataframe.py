@@ -3,6 +3,22 @@ import operator
 import itertools as it
 import datetime
 
+def element_wise_comparison(func, list_1, list_2):
+    """Compare list_1 and list_2 using func and return a list of Bool
+
+    Takes Python lists and outputs Python lists. list_2 may be a scalar.
+    """
+    if not isinstance(list_1,list):
+        raise TypeError("list_1 must be of the type 'List'")
+    if isinstance(list_2, (int, float, str, datetime.datetime)) :
+        return [func(x,list_2) for x in list_1]
+    elif isinstance(list_2, list):
+        if len(list_1) != len(list_2):
+            raise ValueError("Lists have incompatible lengths")
+        return [func(x,y) for x, y in zip(list_1, list_2)]
+    else:
+        raise TypeError("Can only compare against the types 'Int,' 'Float,' 'Str,' or 'List'")
+
 class DataColumn:
     """
     Column of Simplistic DataFrame
@@ -53,6 +69,36 @@ class DataColumn:
             return DataColumn([operator.truediv(x, y) for x, y in zip(self.data, other.data)])
         else:
             raise TypeError("Can only divide by the types 'Int,' or 'Float'")
+
+    def __eq__(self, other):
+        list_1 = self.data
+        list_2 = other.data if isinstance(other,DataColumn) else other
+        return DataColumn(element_wise_comparison(operator.eq,list_1, list_2))
+
+    def __lt__(self, other):
+        list_1 = self.data
+        list_2 = other.data if isinstance(other,DataColumn) else other
+        return DataColumn(element_wise_comparison(operator.lt,list_1, list_2))
+
+    def __le__(self, other):
+        list_1 = self.data
+        list_2 = other.data if isinstance(other,DataColumn) else other
+        return DataColumn(element_wise_comparison(operator.le,list_1, list_2))
+
+    def __ne__(self, other):
+        list_1 = self.data
+        list_2 = other.data if isinstance(other,DataColumn) else other
+        return DataColumn(element_wise_comparison(operator.ne,list_1, list_2))
+
+    def __ge__(self, other):
+        list_1 = self.data
+        list_2 = other.data if isinstance(other,DataColumn) else other
+        return DataColumn(element_wise_comparison(operator.ge,list_1, list_2))
+
+    def __gt__(self, other):
+        list_1 = self.data
+        list_2 = other.data if isinstance(other,DataColumn) else other
+        return DataColumn(element_wise_comparison(operator.gt,list_1, list_2))
         
     def __repr__(self):
         print(repr(self.data))
