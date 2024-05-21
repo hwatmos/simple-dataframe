@@ -331,6 +331,17 @@ class DataFrame:
         # Return descriptive string
         return f"DataFrame with {len(self.columns)} columns and {len(self.data[0])} rows"
 
+    def set_types(self,types):
+        """Set each column's data type accordingly to types.
+
+        Currently, only accepts dict.
+        """
+        if isinstance(types, dict):
+            for col_lab, col_type in dict.items():
+                return DataColumn(self[col_lab].set_type(col_type))
+        else:
+            raise TypeError("Types param must be of the type 'Dict'")
+
 
             
 
