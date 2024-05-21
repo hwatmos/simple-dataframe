@@ -17,6 +17,41 @@ class DataColumn:
             return DataColumn([operator.add(x, y) for x, y in zip(self.data, other.data)])
         else:
             raise TypeError("Operands must be of the type 'DataColumn,' 'Int,' or 'Float'")
+
+    def __sub__(self, other):
+        if isinstance(other, int) or isinstance(other, float):
+            return DataColumn([operator.sub(x, other) for x in self.data])
+        elif isinstance(other, DataColumn):
+            if len(self.data) != len(other.data):
+                raise ValueError("Columns have incompatible lengths")
+            return DataColumn([operator.sub(x, y) for x, y in zip(self.data, other.data)])
+        else:
+            raise TypeError("Operands must be of the types 'DataColumn,' 'Int,' or 'Float'")
+
+    def __mul__(self, other):
+        if isinstance(other, int) or isinstance(other, float):
+            return DataColumn([operator.mul(x, other) for x in self.data])
+        elif isinstance(other, DataColumn):
+            if len(self.data) != len(other.data):
+                raise ValueError("Columns have incompatible lengths")
+            return DataColumn([operator.mul(x, y) for x, y in zip(self.data, other.data)])
+        else:
+            raise TypeError("Can only divide by the types 'Int,' or 'Float'")
+
+    def __truediv__(self, other):
+        if isinstance(other, int) or isinstance(other, float):
+            if other==0:
+                raise ValueError("Div by zero is not allowed")
+            return DataColumn([operator.truediv(x, other) for x in self.data])
+        elif isinstance(other, DataColumn):
+            if len(self.data) != len(other.data):
+                raise ValueError("Columns have incompatible lengths")
+            if 0 in other:
+                raise ValueError("Encountered division by zero")
+            return DataColumn([operator.truediv(x, y) for x, y in zip(self.data, other.data)])
+        else:
+            raise TypeError("Can only divide by the types 'Int,' or 'Float'")
+        
     def __repr__(self):
         print(repr(self.data))
         return "Column"
