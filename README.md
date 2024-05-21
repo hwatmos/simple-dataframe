@@ -22,6 +22,8 @@ The main means of accomplishing a simplified data science workflow is by designi
 * Column.isna()
 * Check NAs
 * Replace NAs with replacement rules
+* Merge (and specific method for left_join)
+* Concat
  
 **Specific to strings**
 * Common operations on strings that pandas makes accessible via .str?
