@@ -119,8 +119,18 @@ class DataFrame:
                 raise KeyError(f"Column '{key}' not found")
 
     def __setitem__(self, key, new_col_values):
+        required_col_len = len(self.data[0])
         if isinstance(key, str):
-            col_idx = self.columns.index(key)
+            # If exists, find the column index, otherwise check if possible (corrent length) to create the column
+            if key in self.columns:
+                col_idx = self.columns.index(key)
+            else:
+                if len(new_col_values.as_list()) != required_col_len:
+                    ValueError("Columns have incompatible lengths")
+                else:
+                    col_idx = len(self.columns) # b/c current length is 1 greater than current rightmost idn
+                    self.columns.append(key)
+                    self.data.append([None]*required_col_len)
         elif isinstance(key, int):
             col_idx = key
         else:
@@ -136,7 +146,7 @@ class DataFrame:
         return
         
     def __len__(self):
-        return len(self.data) # Could make it more efficient by keeping track of length throughout ops
+        return len(self.data[0])
     
     def __repr__(self):
         # Human readable representation or informal, string, representation of the dataframe
@@ -170,20 +180,15 @@ class DataFrame:
         for c in self.columns:
             print(f"{c:^{col_width}}",end = ' | ')
         print("\n"+prefix_line+("-"*len(self.columns)*13))
-        # Print rows
+        # Print rows, one col at a time
         for r in range(nrows):
             data_idx = r + start_row
             print(eval(prefix_data),end=' ')
             for c in display_data[r]:
-                print(f"{c:>{col_width}}",end = ' | ')
+                print(f"{c:>{col_width},.1f}" if isinstance(c,float) else f"{c:>{col_width}}",end = ' | ')
             print('')
         # Return descriptive string
         return f"DataFrame with {len(self.columns)} columns and {len(self.data[0])} rows"
-
-    def apply(self, func, column):
-        col_idx = self.columns.index(column)
-        for row in self.data:
-            row[col_idx] = func(row[col_idx])
 
 
             
