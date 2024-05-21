@@ -9,12 +9,14 @@ class DataColumn:
         self.data = data
 
     def __add__(self, other):
-        if not isinstance(other, DataColumn):
-            raise TypeError("Operands must be of the type 'DataColumn'")
-        if len(self.data) != len(other.data):
-            raise ValueError("Columns have incompatible lengths")
-        return DataColumn([operator.add(x, y) for x, y in zip(self.data, other.data)])
-
+        if isinstance(other, int) or isinstance(other, float):
+            return DataColumn([operator.add(x, other) for x in self.data])
+        elif isinstance(other, DataColumn):
+            if len(self.data) != len(other.data):
+                raise ValueError("Columns have incompatible lengths")
+            return DataColumn([operator.add(x, y) for x, y in zip(self.data, other.data)])
+        else:
+            raise TypeError("Operands must be of the type 'DataColumn,' 'Int,' or 'Float'")
     def __repr__(self):
         print(repr(self.data))
         return "Column"
