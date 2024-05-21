@@ -6,13 +6,13 @@ import datetime
 def element_wise_comparison(func, list_1, list_2):
     """Compare list_1 and list_2 using func and return a list of Bool
 
-    Takes Python lists and outputs Python lists. list_2 may be a scalar.
+    Takes Python lists or tuples and outputs Python lists. list_2 may be a scalar.
     """
-    if not isinstance(list_1,list):
+    if not isinstance(list_1,(list,tuple)):
         raise TypeError("list_1 must be of the type 'List'")
     if isinstance(list_2, (int, float, str, datetime.datetime)) :
         return [func(x,list_2) for x in list_1]
-    elif isinstance(list_2, list):
+    elif isinstance(list_2, (list,tuple)):
         if len(list_1) != len(list_2):
             raise ValueError("Lists have incompatible lengths")
         return [func(x,y) for x, y in zip(list_1, list_2)]
