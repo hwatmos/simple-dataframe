@@ -274,7 +274,7 @@ class DataFrame:
             prefix_header = f"{'i':>{1+prefix_extra_len}} |"
             prefix_line = "-"*(3+prefix_extra_len)
             prefix_data="f'{data_idx:>{1+prefix_extra_len}} |'"
-        # Slice top nrows
+        # Slice rows
         for col in df:
             col = list(it.islice(col,start_row,start_row+nrows))
             display_data.append(col)
