@@ -229,7 +229,10 @@ class DataFrame:
         with open(file_path, 'r', newline='') as file:
             csv_reader = csv.reader(file,skipinitialspace=True) # https://docs.python.org/3/library/csv.html
             self.columns = next(csv_reader)
-            data = [row for row in csv_reader]
+            data = []
+            for row in csv_reader:
+                processed_row = [None if value == '' else value for value in row]
+                data.append(processed_row)
             self.data = list(zip(*data))
             del data;
 
