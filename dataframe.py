@@ -286,7 +286,7 @@ class DataFrame:
             print(f"{c:^{col_width}}",end = ' | ')
         print("\n"+prefix_line+("-"*len(self.columns)*13))
         # Print rows, one col at a time
-        for r in range(nrows):
+        for r in range(len(display_data)):
             data_idx = r + start_row
             print(eval(prefix_data),end=' ')
             for c in display_data[r]:
