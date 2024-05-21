@@ -1,5 +1,6 @@
 import csv
 import operator
+import itertools as it
 
 class DataColumn:
     """
