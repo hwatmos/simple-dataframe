@@ -319,7 +319,14 @@ class DataFrame:
             data_idx = r + start_row
             print(eval(prefix_data),end=' ')
             for c in display_data[r]:
-                print(f"{c:>{col_width},.1f}" if isinstance(c,float) else f"{c:>{col_width}}",end = ' | ')
+                c_print = "" # text to print for the current column, formatted below
+                if isinstance(c,float):
+                    c_print=f"{c:>{col_width},.1f}"
+                elif c==None:
+                    c_print = pretty_string(f"{'--':>{col_width}}",'red')
+                else:
+                    c_print=f"{c:>{col_width}}"
+                print(c_print,end = ' | ')
             print('')
         # Return descriptive string
         return f"DataFrame with {len(self.columns)} columns and {len(self.data[0])} rows"
