@@ -184,6 +184,19 @@ class DataColumn:
         else:
             raise TypeError("Can only compare to another DataColumn")
 
+    def set_type(self, new_type):
+        casted_values = []
+        for val in self.data:
+            try:
+                if val==None:
+                    casted_val=None
+                else:
+                    casted_val = new_type(val)
+                casted_values.append(casted_val)
+            except (TypeError, ValueError) as e:
+                raise ValueError(f"Cannon cast {val} to {new_type}: {e}")
+        return casted_values
+
 class DataFrame:
     '''
     Simplistic DataFrame
