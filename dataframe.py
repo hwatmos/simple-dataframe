@@ -254,27 +254,33 @@ class DataFrame:
     '''
     def __init__(self,data=None,dtypes=None):
         dtypes_provided = isinstance(dtypes,dict)
+        self.allowed_col_properties = ['dtype','long_name','col_print_length']
         self.default_col_print_length = 10
         self.max_col_print_length = 10
         self.min_col_print_length = 5
         self.data = []
-        self.columns = []
+        self.columns = {} # keys are short names; col_properties includes long_name
         self.col_properties = []
         values_len = -1
         if data==None:
             pass
         elif isinstance(data,dict):
+            i = 0
             for key, values in data.items():
                 if values_len == -1:
                     values_len = len(values)
                 else:
                     if len(values) != values_len:
                         raise ValueError("Columns have incompatible lengths")
-                self.columns.append(key)
+                self.columns[key] = i
                 self.data.append(values)
                 # Check if dtypes were given:
                 if dtypes_provided:
                     self.col_properties.append(ColumnProperties({'dtype':dtypes[key]}))
+                else:
+                    self.col_properties.append(ColumnProperties())
+                i += 1
+            self.update_col_lengths()
         else:
             raise TypeError("Data must be of the type'Dict'")
         return
@@ -297,23 +303,27 @@ class DataFrame:
             return
             
     def read_csv(self, file_path):
+        if len(self.columns) > 0:
+            raise RuntimeError("Attemped to overwrite current data with read_csv")
         with open(file_path, 'r', newline='') as file:
             csv_reader = csv.reader(file,skipinitialspace=True) # https://docs.python.org/3/library/csv.html
-            self.columns = next(csv_reader)
+            columns = next(csv_reader)
+            for i, col_label in enumerate(columns):
+                self.columns[col_label] = i
             data = []
             for row in csv_reader:
                 processed_row = [None if value == '' else value for value in row]
                 data.append(processed_row)
             self.data = list(zip(*data))
-        
         del data;
-        self.col_properties = [ColumnProperties() for i in range(len(self.columns))]
+        self.col_properties = [ColumnProperties({'dtype':None}) for i in range(len(self.columns))]
+        self.update_col_lengths()
         return
 
     def to_csv(self, file_path):
         with open(file_path, 'w', newline='') as file: # newline????
             csv_writer = csv.writer(file) # https://docs.python.org/3/library/csv.html
-            csv_writer.writerow(self.columns)
+            csv_writer.writerow(list(self.columns.keys()))
             csv_writer.writerows(self.data)
 
     def __getitem__(self, key):
@@ -370,18 +380,23 @@ class DataFrame:
     def __setitem__(self, key, new_col_values):
         required_col_len = len(self.data[0])
         if isinstance(key, str):
+            col_label = key
             # If exists, find the column index, otherwise check if possible (corrent length) to create the column
             if key in self.columns:
-                col_idx = self.columns.index(key)
+                # Column exists
+                col_idx = self.columns[key]
             else:
+                # Column does not exist
                 if len(new_col_values.as_list()) != required_col_len:
                     ValueError("Columns have incompatible lengths")
                 else:
                     col_idx = len(self.columns) # b/c current length is 1 greater than current rightmost idn
-                    self.columns.append(key)
+                    self.columns[key] = len(self.columns)
                     self.data.append([None]*required_col_len)
+                    self.col_properties.append(ColumnProperties({'dtype':None}))
         elif isinstance(key, int):
             col_idx = key
+            col_label = list(self.columns.keys())[col_idx]
         else:
             raise TypeError("Key must be of the types 'Str' or 'Int'")
         if isinstance(new_col_values, DataColumn):
@@ -392,6 +407,7 @@ class DataFrame:
             if len(self.data[col_idx]) != len(new_col_values):
                 raise ValueError("Columns have incompatible lengths")
             self.data[col_idx] = new_col_values
+        self.update_col_lengths(col=col_label)
         return
         
     def __len__(self):
