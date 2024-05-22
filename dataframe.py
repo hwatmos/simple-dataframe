@@ -367,7 +367,6 @@ class DataFrame:
         """Print nrows first rows of data
         """
         display_data = [] # each element to represent a row (instead of col as is in self.data
-        col_width = 10
         prefix_extra_len = len(str(start_row+nrows))-1
         prefix_header1 = "| " 
         prefix_header2 = "| "
