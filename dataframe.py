@@ -254,6 +254,9 @@ class DataFrame:
     '''
     def __init__(self,data=None,dtypes=None):
         dtypes_provided = isinstance(dtypes,dict)
+        self.default_col_print_length = 10
+        self.max_col_print_length = 10
+        self.min_col_print_length = 5
         self.data = []
         self.columns = []
         self.col_properties = []
@@ -276,6 +279,23 @@ class DataFrame:
             raise TypeError("Data must be of the type'Dict'")
         return
 
+    def update_col_lengths(self,col=None):
+        if col==None:
+            for col_label, col_idx in self.columns.items():
+                new_length = min(self.max_col_print_length,max([len(str(x))+1 for x in self.data[col_idx]]))
+                new_length = max(new_length,len(col_label)+1)
+                new_length = max(new_length,self.min_col_print_length)
+                self.set_property('col_print_length',{col_label:new_length})
+            return
+        else:
+            col_label = col
+            col_idx = self.columns[col_label]
+            new_length = min(self.max_col_print_length,max([len(str(x))+1 for x in self.data[col_idx]]))
+            new_length = max(new_length,len(col_label)+1)
+            new_length = max(new_length,self.min_col_print_length)
+            self.set_property('col_print_length',{col_label:new_length})
+            return
+            
     def read_csv(self, file_path):
         with open(file_path, 'r', newline='') as file:
             csv_reader = csv.reader(file,skipinitialspace=True) # https://docs.python.org/3/library/csv.html
@@ -360,21 +380,25 @@ class DataFrame:
             prefix_line = "-"*(3+prefix_extra_len)
             prefix_data="f'{data_idx:>{1+prefix_extra_len}} |'"
         # Slice rows
-        for col in df:
+        for col in self.data:
             col = list(it.islice(col,start_row,start_row+nrows))
             display_data.append(col)
         # Transpose for  printing row by row
         display_data = list(zip(*display_data))
         # Print header
         ## Row 1 (short name)
-        print(prefix_header1,end=' ')
-        for c in self.columns:
-            print(f"{c:^{col_width}}",end = ' | ')
+        row_1_string = ""
+        row_1_string += prefix_header1 + " "
+        for col_label, col_idx in self.columns.items():
+            col_width = self.col_properties[col_idx].col_print_length
+            row_1_string += f"{col_label:^{col_width}}" + ' | '
+        print(row_1_string)
         ## Row 2 (dtypes)
-        print("\n"+prefix_header2,end=' ')
-        for c in self.col_properties:
+        print(prefix_header2,end=' ')
+        for col_prop in self.col_properties:
             try:
-                dtype = c.dtype
+                dtype = col_prop.dtype
+                col_width = col_prop.col_print_length
                 text_to_print = ""
                 if dtype==str:
                     text_to_print = pretty_string(f"{'str':>{col_width}}",'magenta')
@@ -388,21 +412,24 @@ class DataFrame:
             except:
                 pass
         # Break line
-        print("\n"+prefix_line+("-"*len(self.columns)*13))
+        print("\n"+prefix_line+("-"*(len(row_1_string)-1-len(prefix_line))))
         # Print rows, one col at a time
         for r in range(len(display_data)):
             data_idx = r + start_row
             print(eval(prefix_data),end=' ')
-            for c in display_data[r]:
+            for col_idx, col_val in enumerate(display_data[r]):
                 text_to_print = "" # text to print for the current column, formatted below
-                if isinstance(c,float):
-                    text_to_print=f"{c:>{col_width},.1f}"
-                elif c==None:
+                col_width = self.col_properties[col_idx].col_print_length
+                if isinstance(col_val,float):
+                    text_to_print=f"{col_val:>{col_width},.1f}"
+                elif col_val==None:
                     text_to_print = pretty_string(f"{'--':>{col_width}}",'red')
-                elif isinstance(c,Category):
-                    text_to_print=f"{c:>{col_width}}"
+                elif isinstance(col_val,Category):
+                    text_to_print=f"{col_val:>{col_width}}"
+                elif isinstance(col_val,str):
+                    text_to_print=f"{col_val[:col_width]:>{col_width}}"
                 else:
-                    text_to_print=f"{c[:col_width]:>{col_width}}"
+                    text_to_print=f"{col_val:>{col_width}}"
                 print(text_to_print,end = ' | ')
             print('')
         # Return descriptive string
