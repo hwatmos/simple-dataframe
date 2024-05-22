@@ -151,7 +151,7 @@ class DataColumn:
         return DataColumn(element_wise_comparison(operator.gt,list_1, list_2))
         
     def __repr__(self):
-        print(repr(self.data))
+        print(self.data[:5])
         return "Column"
 
     def as_list(self):
