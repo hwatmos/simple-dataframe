@@ -234,7 +234,8 @@ class DataColumn:
                 raise ValueError(f"Cannon cast {val} to {new_type}: {e}")
         return DataColumn(casted_values)
 
-    #def isna(self):
+    def isna(self):
+        return list(map(lambda x: x==None,self.data))
         
 class DataFrame:
     '''
