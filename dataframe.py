@@ -317,11 +317,52 @@ class DataFrame:
             csv_writer.writerows(self.data)
 
     def __getitem__(self, key):
-        if isinstance(key, int):
+        if isinstance(key,(list,tuple)):
+            new_data_dict = {}
+            new_dtypes = {}
+            new_cols = []
+            use_all_cols = False
+            # Handle row selections if rows were provided as a list (only bool and int values are accepted, may need to add explicit error handling)
+            if isinstance(key[0],DataColumn):
+                row_selector = key[0].data
+            else:
+                row_selector = key[0]
+            # Decypher selected columns: first check if multipe or single; next, check whether labels or indices
+            try:
+                key[1]
+            except:
+                use_all_cols=True
+            if use_all_cols:
+                new_cols = list(self.columns.keys())
+            elif isinstance(key[1],(list,tuple)):
+                new_cols = list(key[1])
+            else:
+                new_cols.append(key[1])
+            for i, col in enumerate(new_cols):
+                if isinstance(col,str):
+                    pass
+                elif isinstance(col,int):
+                    new_cols[i] = list(self.columns.keys())[i]
+                else:
+                    raise TypeError("Column selector must contain str or int values.")
+            for col_label, col_idx in self.columns.items():
+                if col_label in new_cols:
+                    if isinstance(row_selector,list):
+                        if isinstance(row_selector[0],bool):
+                            new_data_dict[col_label] = [x for x, is_selected in zip(self.data[col_idx],row_selector) if is_selected]
+                        elif isinstance(row_selector[0],int):
+                            new_data_dict[col_label] = [self.data[x] for x in row_selector]
+                    else:
+                        new_data_dict[col_label] = self.data[col_idx][row_selector]
+                    new_dtypes[col_label] = self.col_properties[col_idx].dtype
+            #print(new_data_dict)
+            #print(new_dtypes)
+            return DataFrame(new_data_dict,dtypes=new_dtypes)
+        elif isinstance(key, int):
             return DataColumn(self.data[key])
         elif isinstance(key, str):
             try:
-                col_idx = self.columns.index(key)
+                col_idx = self.columns[key]
                 return DataColumn(self.data[col_idx])
             except ValueError:
                 raise KeyError(f"Column '{key}' not found")
@@ -358,12 +399,12 @@ class DataFrame:
     
     def __repr__(self):
         # Human readable representation or informal, string, representation of the dataframe
-        return str(self.rows(start_row=0,nrows=5,show_index=True)) #str(list(self.data))
+        return str(self.show(start_row=0,nrows=5,show_index=True)) #str(list(self.data))
 
     def __iter__(self):
         return iter(self.data)
 
-    def rows(self,start_row=0,nrows=5,show_index=True):
+    def show(self,start_row=0,nrows=5,show_index=True):
         """Print nrows first rows of data
         """
         display_data = [] # each element to represent a row (instead of col as is in self.data
