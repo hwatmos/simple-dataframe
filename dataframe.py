@@ -3,6 +3,7 @@ import operator
 import itertools as it
 import datetime
 import statistics
+from collections import defaultdict
 
 def pretty_string(string,color,length=None):
     """Accepted colors: red, green, yellow, blue, magenta, cyan"""
@@ -491,18 +492,104 @@ class DataFrame:
         # Return descriptive string
         return f"DataFrame with {len(self.columns)} columns and {len(self.data[0])} rows"
 
-    def set_types(self,types):
+    def set_property(self,property_type,new_properties):
         """Set each column's data type accordingly to types.
 
         Currently, only accepts dict.
         """
-        if isinstance(types, dict):
-            for col_name, col_type in types.items():
-                self[col_name] = self[col_name].set_type(col_type)
-                col_idx = self.columns.index(col_name)
-                self.col_properties[col_idx].add_properties({'dtype':col_type})
+        if property_type not in self.allowed_col_properties:
+            raise ValueError(f"Property_type must be one of {self.allowed_col_properties}")
+        if not isinstance(new_properties, dict):
+            raise TypeError(f"New_properies must be a dict")
+        for col_name, prop_value in new_properties.items():
+            col_idx = self.columns[col_name]
+            self.col_properties[col_idx].add_properties({property_type:prop_value})
+            if property_type == 'dtype':
+                self[col_name] = self[col_name].set_type(prop_value)
+
+    def set_short_col_names(self,new_names,promote_current_to_long_names=False):
+        new_long_names = {}
+        if not isinstance(new_names,dict):
+            raise TypeError("new_names must be a dict")
         else:
-            raise TypeError("Types param must be of the type 'Dict'")
+            for cur_label, new_label in new_names.items():
+                if promote_current_to_long_names:
+                    new_long_names[new_label] = cur_label
+                self.columns[new_label] = self.columns[cur_label]
+                del self.columns[cur_label]
+            if promote_current_to_long_names:
+                self.set_property('long_name',new_long_names)
+            self.columns = dict(sorted(self.columns.items(), key=lambda item: item[1]))
+            self.update_col_lengths()
+        return
+
+    def get_col_names(self):
+        col_names_dict = {}
+        for col_short_name, col_idx in self.columns.items():
+            try:
+                col_names_dict[col_short_name] = self.col_properties[col_idx].long_name
+            except AttributeError:
+                col_names_dict[col_short_name] = None
+        return col_names_dict
+
+    def set_row_index(self,idx_col_labels):
+        new_index_cols = {} # map for indices
+        new_index_idx = [] # list of indices' idx in data
+        new_data_cols = {}
+        new_data_idx = []
+        #data_col_order = [] # indices of the final data organized such that index cols are first
+        # List out index labels and locations
+        for col_label in idx_col_labels:
+            new_index_cols[col_label] = self.columns[col_label]
+            new_index_idx.append(self.columns[col_label])
+        # List out data labels and locations
+        for col_label, col_idx in self.columns.items():
+            if col_label in new_index_cols:
+                continue
+            else:
+                new_data_cols[col_label] = col_idx
+                new_data_idx.append(col_idx)
+        # Calculate column order
+        #data_col_order = list(new_index_cols.values())+list(new_data_cols.values())
+
+        self.nested_dict = NestedDict()
+        # Iterate row at a time (i.e. iterate transposed data model)
+        for data_row in zip(*self.data):
+            self.nested_dict[[data_row[xid] for xid in new_index_idx]] = [data_row[xid] for xid in new_data_idx]
+        return
+
+class NestedDict:
+    def __init__(self):
+        self.data = defaultdict(lambda: None)
+        return
+
+    def __setitem__(self, keys, value):
+        if len(keys)>1:
+            if not keys[0] in self.data:
+                self.data[keys[0]] = NestedDict()
+            self.data[keys[0]][keys[1:]] = value
+        else:
+            self.data[keys[0]] = value
+        return
+
+    def __getitem__(self, keys):
+        if len(keys)>1:
+            return self.data[keys[0]][keys[1:]]
+        else:
+            return self.data[keys[0]]
+
+    def labels(self):
+        return list(self.data.keys())
+
+    def enum_levels(self, trail=[]):
+        resulting_levels=[]
+        if isinstance(self.data[list(self.data.keys())[0]],NestedDict):
+            for key, nested_dict in self.data.items():
+                this_result = nested_dict.enum_levels(trail=trail + [key])
+                resulting_levels.extend(this_result)
+        else:
+            resulting_levels = [trail + [key] for key in self.data.keys()]
+        return resulting_levels
 
 
             
