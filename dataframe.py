@@ -612,44 +612,140 @@ class DataFrame:
                 col_names_dict[col_short_name] = None
         return col_names_dict
 
-    def set_row_index(self,idx_col_labels):
-        new_index_cols = {} # map for indices
-        new_index_idx = [] # list of indices' idx in data
-        new_data_cols = {}
-        new_data_idx = []
-        #data_col_order = [] # indices of the final data organized such that index cols are first
+    def set_row_index(self,key_col_labels):
+        """Builds the rows property based on the list of keys key_col_labels.
+
+        The resulting rows property can be accessed via selector by listing
+        key values in their hierarchical order.
+
+        Examples
+        --------
+        df = DataFrame({'col_a':['A','B','A','B'],'col_b':[0,0,1,1],'val':[1,2,3,4]})
+        Calling set_row_index(['col_a','col_b']) where col_a has unique values
+        'A' and 'B' and col_b has unique values 0 and 1
+        """
+        key_cols = {} # map for indices
+        key_cols_idx = [] # list of indices' idx in data
+        value_cols = {}
+        value_cols_idx = []
         # List out index labels and locations
-        for col_label in idx_col_labels:
-            new_index_cols[col_label] = self.columns[col_label]
-            new_index_idx.append(self.columns[col_label])
+        for col_label in key_col_labels:
+            key_cols[col_label] = self.columns[col_label]
+            key_cols_idx.append(self.columns[col_label])
         # List out data labels and locations
         for col_label, col_idx in self.columns.items():
-            if col_label in new_index_cols:
+            if col_label in key_cols:
                 continue
             else:
-                new_data_cols[col_label] = col_idx
-                new_data_idx.append(col_idx)
-        # Calculate column order
-        #data_col_order = list(new_index_cols.values())+list(new_data_cols.values())
+                value_cols[col_label] = col_idx
+                value_cols_idx.append(col_idx)
+        # Sort data according to the provided keys
+        sorted_data=list(zip(*sorted(zip(*df.values()),key=lambda x: [x[col] for col in key_cols_idx])))
 
-        self.nested_dict = NestedDict()
+        self.rows = NestedDict(assume_sorted=True)
         # Iterate row at a time (i.e. iterate transposed data model)
-        for data_row in zip(*self.data):
-            self.nested_dict[[data_row[xid] for xid in new_index_idx]] = [data_row[xid] for xid in new_data_idx]
+        #for data_row in zip(*self.data):
+        #    self.rows[[data_row[dim_value] for dim_value in key_cols_idx]] = [data_row[measure_val] for measure_val in value_cols_idx]
+        for i in range(len(self.data[0])):
+            self.rows[[sorted_data[dim_value][i] for dim_value in key_cols_idx]] = i#[self.data[col][i] for col in range(len(self.data))]
+        #del self.data # most likely delete this line
+        # Recreate DataFrame using the results of this method
+        new_data = {}
+        new_col_properties = {} # nested dictionary (dict for each column)
+        col_idx = 0
+        for key_col_label, old_col_idx in key_cols.items():
+            col_data = sorted_data[old_col_idx]
+            col_props = self.data[old_col_idx].get_all_properties()
+            col_props['key'] = True
+            new_data[key_col_label] = col_data
+            new_col_properties[key_col_label] = col_props
+            col_idx += 1
+        for value_col_label, old_col_idx in value_cols.items():
+            col_data = sorted_data[old_col_idx]
+            col_props = self.data[old_col_idx].get_all_properties()
+            col_props['key'] = False
+            new_data[value_col_label] = col_data
+            new_col_properties[value_col_label] = col_props
+            col_idx +=1
+        resulting_data_frame = DataFrame(new_data, col_properties=new_col_properties)
+        resulting_data_frame.rows = self.rows
+        return resulting_data_frame
+
+    def aggregate(self):
+        """Aggregates DataFrame using its keys.
+
+        Keys must be set before aggregating. Aggregation_func property
+        must also be set before aggregating.
+        This method will reshape the data by creating one record 
+        for each unique key combination. Values are aggregated using 
+        aggregation_func property of each column.
+        """
+        new_data = [[] for col in self.columns.items()]
+        row_idx = 0
+        for key_values in self.rows.enum_levels():
+            print(key_values)
+            for col_name, col_idx in self.columns.items():
+                if self.data[col_idx].key:
+                    current_value = self.data[col_idx][self.rows[key_values]][0]
+                    new_data[col_idx].append(current_value)
+                else:
+                    current_values = self.data[col_idx][self.rows[key_values]]
+                    print(col_name, current_values)
+                    new_value = self.data[col_idx].aggregation_func(current_values)
+                    new_data[col_idx].append(new_value)
+            self.rows[key_values] = row_idx
+            row_idx += 1
+        for col_label, col_idx in self.columns.items():
+            new_col_data = new_data[col_idx]
+            new_col_props = self.data[col_idx].get_all_properties()
+            self.data[col_idx] = DataColumn(new_col_data,col_properties=new_col_props)
         return
 
+    def values(self):
+        """
+        Returns a nested list of values.
+
+        The returned nested list has shape n_cols x n_rows.
+        """
+        data_values = []
+        for col_label, col_idx in self.columns.items():
+            data_values.append(self.data[col_idx].data)
+        return data_values
+
 class NestedDict:
-    def __init__(self):
+    def __init__(self,assume_sorted:bool):
+        if not isinstance(assume_sorted,bool):
+            raise ValueError("assume_sorted must be provided as a bool")
+        self.assume_sorted = assume_sorted
         self.data = defaultdict(lambda: None)
         return
 
     def __setitem__(self, keys, value):
+        """Build nested dictionary from keys list and value object
+
+        Each next key in keys will produce another nested dict key,
+        with the last key's value being assigned the value
+        as an element of a list.
+        If the exact specified keys already exist, the value will
+        be appended to the list value of the last key.
+        """
         if len(keys)>1:
             if not keys[0] in self.data:
-                self.data[keys[0]] = NestedDict()
+                self.data[keys[0]] = NestedDict(self.assume_sorted)
             self.data[keys[0]][keys[1:]] = value
         else:
-            self.data[keys[0]] = value
+            if not self.assume_sorted:
+                # Collect list of indices
+                if isinstance(self.data[keys[0]] ,list):
+                    self.data[keys[0]].append(value)
+                else:
+                    self.data[keys[0]] = [value]
+            else:
+                # Build slicer objects
+                if isinstance(self.data[keys[0]] ,slice):
+                    self.data[keys[0]] = slice(self.data[keys[0]].start,value+1) # Replaces existing slice with new one by keeping the same start but modifying the end. This works because data is sorted
+                else:
+                    self.data[keys[0]] = slice(value,value+1)
         return
 
     def __getitem__(self, keys):
@@ -670,30 +766,3 @@ class NestedDict:
         else:
             resulting_levels = [trail + [key] for key in self.data.keys()]
         return resulting_levels
-
-
-            
-
-
-'''
-https://docs.python.org/3/tutorial/classes.html
-
-This style of access is clear, concise, and convenient. The use of iterators pervades and unifies Python. Behind the scenes, the for statement calls iter() on the container object. The function returns an iterator object that defines the method __next__() which accesses elements in the container one at a time. When there are no more elements, __next__() raises a StopIteration exception which tells the for loop to terminate. You can call the __next__() method using the next() built-in function; this example shows how it all works.
-
-Having seen the mechanics behind the iterator protocol, it is easy to add iterator behavior to your classes. Define an __iter__() method which returns an object with a __next__() method. If the class defines __next__(), then __iter__() can just return self:
-
-class Reverse:
-    """Iterator for looping over a sequence backwards."""
-    def __init__(self, data):
-        self.data = data
-        self.index = len(data)
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self.index == 0:
-            raise StopIteration
-        self.index = self.index - 1
-        return self.data[self.index]
-'''
