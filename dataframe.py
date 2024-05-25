@@ -8,7 +8,37 @@ from collections import defaultdict
 ALLOWED_COL_PROPERTIES = ['dtype','long_name','col_print_length','key','aggregation_func']
 
 def pretty_string(string,color,length=None):
-    """Accepted colors: red, green, yellow, blue, magenta, cyan"""
+    """Trim to length and change color of provided string.
+
+    Given string is first trimmed to requested length, then color
+    formatting is applied and the result returned.
+    Trimming is performed by keepting the first [length] characters.
+    It is useful to trim strings before formatting because
+    formatting is performed by adding special characters thus
+    making the string's length more than the visible characters.
+
+    Parameters
+    ----------
+    string : str
+             String which will be returned trimmed and formatted.
+    color : str
+            Color to apply to the string. Available colors are
+            red, green, yellow, blue, magenta, cyan.
+    length : int
+             Length to which the provided string will be trimmed
+             be removing characters from the right. This length
+             is for the visible characters only and does not count
+             the special formatting characters that are added
+             by this function.
+
+    Example
+    -------
+    Given string 'lengthy_column_name' apply blue font and return
+    string that is only 4 characters long i.e. "leng"
+    
+    >>> pretty_string('lengthy_column_name','blue',4)
+
+    """
     colors_dict = {
         'red':31,
         'green':32,
@@ -17,6 +47,7 @@ def pretty_string(string,color,length=None):
         'magenta':35,
         'cyan':36,
     }
+    # This assures that only the visible characters are trimmed and not the whole string including formatting
     if length==None:
         return f"\033[{colors_dict[color]}m{string}\033[0m"
     else:
@@ -30,8 +61,10 @@ def element_wise_comparison(func, list_1, list_2):
     if not isinstance(list_1,(list,tuple)):
         raise TypeError("list_1 must be of the type 'List'")
     if isinstance(list_2, (int, float, str, datetime.datetime)) :
+        # Compare list list_1 to a value list_2
         return [func(x,list_2) for x in list_1]
     elif isinstance(list_2, (list,tuple)):
+        # Compare list to a list if their lengths are compatible
         if len(list_1) != len(list_2):
             raise ValueError("Lists have incompatible lengths")
         return [func(x,y) for x, y in zip(list_1, list_2)]
@@ -39,6 +72,10 @@ def element_wise_comparison(func, list_1, list_2):
         raise TypeError("Can only compare against the types 'Int,' 'Float,' 'Str,' or 'List'")
 
 class Category:
+    """Data format for categorical data
+
+    INCOMPLETE.  Will include list of categories and dict for encoding.
+    """
     def __init__(self,data):
         self.data = data
         return None
@@ -50,8 +87,75 @@ class Category:
         return f"{self.data:{fmt}}"
 
 class DataColumn:
-    """
-    Column of Simplistic DataFrame
+    """Represents a column of a DataFrame.
+
+    Stores the column's values and additional metadata
+    to describe column properties. DataColumn is subscriptable.
+    See examples below.
+
+    Attributes
+    ----------
+    data : list
+           Ordered ist of values belonging to this column.
+    dtype : data type
+            The type of the data in this column. For example
+            str, int, Category.
+    long_name : str
+                Long name of the column intended for human
+                understanding. Long_names can be useful
+                for interpreting each column as the names
+                that arae printed by DataFrame by default
+                are short names and should emphasize brevity
+                over meaningfulness.
+    col_print_length : int
+                The lengh (in number of characters) used when
+                printing this column. Column label and values
+                will be truncated to fit this length. 
+                Calculaated by considering the min and max
+                column widths as well as the column name
+                and all values in the column.
+    key : bool
+          Boolean value indicating whether this column
+          is a key or not. Key columns may not have missing 
+          values and are used by the DataFrame for aggregations.
+          Key columns are ignored when DataFrame exports data
+          for analysis by default.
+    aggregation_func : callable
+                A callable that must accept an iterable
+                and return a single value. This is used 
+                by DataFrame to aggregate the data.
+
+    Methods
+    -------
+    add_properties(propterty_dict)
+    get_property(property_name)
+    get_all_properties()
+    apply(func):
+    min()
+    max()
+    mean()
+    median()
+    median_low()
+    median_high()
+    mode()
+    std()
+    var()
+    pstd()
+    pvariance()
+    cov()
+    cor()
+    lr(other)
+    set_type(new_type)
+    isna()
+
+    Examples
+    --------
+    Create new column with four values:
+    >>> col = DataColumn([0,9,8,7])
+    Select first two elements from column's data:
+    >>> col[:2]
+    Returns list [0,9].
+
     """
     def __init__(self, data, col_properties:dict=None):
         self.data = data
