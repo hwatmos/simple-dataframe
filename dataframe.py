@@ -53,21 +53,30 @@ def pretty_string(string,color,length=None):
     else:
         return f"\033[{colors_dict[color]}m{string[:length]}\033[0m"
 
+def is_iterable(obj):
+    """Check whether obj is iterable."""
+    try:
+        iter(obj)
+        return True
+    except TypeError:
+        return False
+
 def element_wise_comparison(func, list_1, list_2):
     """Compare list_1 and list_2 using func and return a list of Bool
 
     Takes Python lists or tuples and outputs Python lists. list_2 may be a scalar.
+
     """
-    if not isinstance(list_1,(list,tuple)):
+    if not is_iterable(list_1):
         raise TypeError("list_1 must be of the type 'List'")
     if isinstance(list_2, (int, float, str, datetime.datetime)) :
         # Compare list list_1 to a value list_2
         return [func(x,list_2) for x in list_1]
-    elif isinstance(list_2, (list,tuple)):
+    elif is_iterable(list_2):
         # Compare list to a list if their lengths are compatible
         if len(list_1) != len(list_2):
             raise ValueError("Lists have incompatible lengths")
-        return [func(x,y) for x, y in zip(list_1, list_2)]
+        return [func(x,y) for x, y in zip(iter(list_1), iter(list_2))]
     else:
         raise TypeError("Can only compare against the types 'Int,' 'Float,' 'Str,' or 'List'")
 
@@ -75,6 +84,7 @@ class Category:
     """Data format for categorical data
 
     INCOMPLETE.  Will include list of categories and dict for encoding.
+
     """
     def __init__(self,data):
         self.data = data
@@ -127,9 +137,6 @@ class DataColumn:
 
     Methods
     -------
-    add_properties(propterty_dict)
-    get_property(property_name)
-    get_all_properties()
     apply(func):
     min()
     max()
@@ -158,28 +165,54 @@ class DataColumn:
 
     """
     def __init__(self, data, col_properties:dict=None):
+        """Initiate new column
+        
+        New column containing the provided data and properties,
+        if provided.
+
+        Parameters
+        ----------
+        data : list
+               List of the column's values.
+        col_properties : dict
+                         Property: value pairs. 
+        
+        """
         self.data = data
+        # Initiate empty properites
+        for prop in ALLOWED_COL_PROPERTIES:
+            self._set_properties({prop:None})
+        # Set the passed properties
         if col_properties != None:
-            self.add_properties(col_properties)
+            self._set_properties(col_properties)
         return
             
-    def add_properties(self, property_dict):
+    def _set_properties(self, property_dict):
+        """Set column property"""
         if isinstance(property_dict, dict):
             for attr_name, attr_val in property_dict.items():
                 setattr(self, attr_name, attr_val)
         else:
             raise TypeError("property_dict parameter must be of the type 'Dict'")
 
-    def get_property(self, property_name):
+    def _get_property(self, property_name):
+        """Extract a property value"""
         try:
             return getattr(self,property_name,None)
         except:
             raise ValueError(f"Property {property_name} not found")
 
-    def get_all_properties(self):
+    def _get_all_properties(self):
+        """
+        Extract all properties
+        
+        Form a dicct of dicts that can be used to recreate this column i.e. in DataColumn
+        class initialization.
+        
+        """
         all_properties = {}
         for prop in ALLOWED_COL_PROPERTIES:
-            all_properties[prop] = self.get_property(prop)
+            all_properties[prop] = self._get_property(prop)
         return all_properties
 
     def __getitem__(self, key):
@@ -191,130 +224,137 @@ class DataColumn:
     def __add__(self, other):
         if isinstance(other, int) or isinstance(other, float):
             return DataColumn([operator.add(x, other) for x in self.data])
-        elif isinstance(other, DataColumn):
-            if len(self.data) != len(other.data):
+        elif is_iterable(other):
+            if len(self) != len(other):
                 raise ValueError("Columns have incompatible lengths")
-            return DataColumn([operator.add(x, y) for x, y in zip(self.data, other.data)])
+            return DataColumn([x + y for x, y in zip(iter(self),iter(other))])
         else:
-            raise TypeError("Operands must be of the type 'DataColumn,' 'Int,' or 'Float'")
+            raise TypeError("Operands must be iterable or 'Int,' or 'Float'")
 
     def __sub__(self, other):
         if isinstance(other, int) or isinstance(other, float):
             return DataColumn([operator.sub(x, other) for x in self.data])
-        elif isinstance(other, DataColumn):
-            if len(self.data) != len(other.data):
+        elif is_iterable(other):
+            if len(self) != len(other):
                 raise ValueError("Columns have incompatible lengths")
-            return DataColumn([operator.sub(x, y) for x, y in zip(self.data, other.data)])
+            return DataColumn([x - y for x, y in zip(iter(self),iter(other))])
         else:
-            raise TypeError("Operands must be of the types 'DataColumn,' 'Int,' or 'Float'")
+            raise TypeError("Operands must be iterable or 'Int,' or 'Float'")
 
     def __mul__(self, other):
         if isinstance(other, int) or isinstance(other, float):
             return DataColumn([operator.mul(x, other) for x in self.data])
-        elif isinstance(other, DataColumn):
-            if len(self.data) != len(other.data):
+        elif is_iterable(other):
+            if len(self) != len(other):
                 raise ValueError("Columns have incompatible lengths")
-            return DataColumn([operator.mul(x, y) for x, y in zip(self.data, other.data)])
+            return DataColumn([x * y for x, y in zip(iter(self),iter(other))])
         else:
-            raise TypeError("Can only divide by the types 'Int,' or 'Float'")
+            raise TypeError("Operands must be iterable or 'Int,' or 'Float'")
 
     def __truediv__(self, other):
         if isinstance(other, int) or isinstance(other, float):
             if other==0:
                 raise ValueError("Div by zero is not allowed")
             return DataColumn([operator.truediv(x, other) for x in self.data])
-        elif isinstance(other, DataColumn):
-            if len(self.data) != len(other.data):
+        elif is_iterable(other):
+            if len(self) != len(other):
                 raise ValueError("Columns have incompatible lengths")
             if 0 in other:
                 raise ValueError("Encountered division by zero")
-            return DataColumn([operator.truediv(x, y) for x, y in zip(self.data, other.data)])
+            return DataColumn([x / y for x, y in zip(iter(self),iter(other))])
         else:
             raise TypeError("Can only divide by the types 'Int,' or 'Float'")
 
     def __eq__(self, other):
-        list_1 = self.data
-        list_2 = other.data if isinstance(other,DataColumn) else other
-        return DataColumn(element_wise_comparison(operator.eq,list_1, list_2))
+        return DataColumn(element_wise_comparison(operator.eq,self, other))
 
     def __lt__(self, other):
-        list_1 = self.data
-        list_2 = other.data if isinstance(other,DataColumn) else other
-        return DataColumn(element_wise_comparison(operator.lt,list_1, list_2))
+        return DataColumn(element_wise_comparison(operator.lt,self, other))
 
     def __le__(self, other):
-        list_1 = self.data
-        list_2 = other.data if isinstance(other,DataColumn) else other
-        return DataColumn(element_wise_comparison(operator.le,list_1, list_2))
+        
+        return DataColumn(element_wise_comparison(operator.le,self, other))
 
     def __ne__(self, other):
-        list_1 = self.data
-        list_2 = other.data if isinstance(other,DataColumn) else other
-        return DataColumn(element_wise_comparison(operator.ne,list_1, list_2))
+        
+        return DataColumn(element_wise_comparison(operator.ne,self, other))
 
     def __ge__(self, other):
-        list_1 = self.data
-        list_2 = other.data if isinstance(other,DataColumn) else other
-        return DataColumn(element_wise_comparison(operator.ge,list_1, list_2))
+        
+        return DataColumn(element_wise_comparison(operator.ge,self, other))
 
     def __gt__(self, other):
-        list_1 = self.data
-        list_2 = other.data if isinstance(other,DataColumn) else other
-        return DataColumn(element_wise_comparison(operator.gt,list_1, list_2))
+        
+        return DataColumn(element_wise_comparison(operator.gt,self, other))
         
     def __repr__(self):
         print(self.data[:5])
         return "Column"
 
     def as_list(self):
+        """Return this column's values as a list"""
         return self.data
 
     def __iter__(self):
         return iter(self.data)
 
     def apply(self, func):
+        """Map func onto this column's values"""
         return DataColumn(list(map(func,self.data)))
 
     def min(self):
+        """Return the smallest of this column's values"""
         return min(self.data)
 
     def max(self):
+        """Return the largest of this column's values"""
         return max(self.data)
 
     def mean(self):
+        """Return the mean of this column's values"""
         return statistics.mean(self.data)
 
     def median(self):
+        """Return the median of this column's values"""
         return statistics.median(self.data)
 
     def median_low(self):
+        """Return the low median of this column's values"""
         return statistics.median_low(self.data)
 
     def median_high(self):
+        """Return the high median of this column's values"""
         return statistics.median_high(self.data)
 
     def mode(self):
+        """Return the mode of this column's values"""
         return statistics.mode(self.data)
 
     def std(self):
+        """Return the sample standard deviation of this column's values"""
         return statistics.stdev(self.data)
 
     def var(self):
+        """Return the sample variance of this column's values"""
         return statistics.variance(self.data)
 
     def pstd(self):
+        """Return the population standard deviation of this column's values"""
         return statistics.pstdev(self.data)
 
     def pvariance(self):
+        """Return the population variance of this column's values"""
         return statistics.pvariance(self.data)
 
     def cov(self,other):
+        """Return the covariance of this column with other column"""
         if isinstance(other, DataColumn):
             return statistics.covariance(self.data,other.data)
         else:
             raise TypeError("Can only compare to another DataColumn")
 
     def cor(self,other):
+        """Return the correlation of this column with other column"""
         if isinstance(other, DataColumn):
             return statistics.correlation(self.data,other.data)
         else:
@@ -333,7 +373,8 @@ class DataColumn:
         else:
             raise TypeError("Can only compare to another DataColumn")
 
-    def set_type(self, new_type):
+    def as_type(self, new_type):
+        """Returnd DataColumn equivalent to thtis but with values cast to new_type"""
         casted_values = []
         for val in self.data:
             try:
@@ -344,11 +385,18 @@ class DataColumn:
                 casted_values.append(casted_val)
             except (TypeError, ValueError) as e:
                 raise ValueError(f"Cannon cast {val} to {new_type}: {e}")
-        self.data = casted_values
-        return 
+        col_props = self._get_all_properties()
+        return DataColumn(casted_values,col_properties=col_props)
 
     def isna(self):
+        """Return list of bools indicating missing values"""
         return list(map(lambda x: x==None,self.data))
+
+    def fillna(self,fill_val):
+        """Return DataColumn with fill_value in place of missing values"""
+        new_values = list(map(lambda x: fill_val if x==None else x,self.data))
+        col_props = self._get_all_properties()
+        return DataColumn(new_values,col_properties=col_props)
         
 class DataFrame:
     '''
@@ -389,13 +437,13 @@ class DataFrame:
                 self.data.append(DataColumn(values))
                 # Check if dtypes were given:
                 if dtypes_provided:
-                    self.data[col_idx].add_properties({'dtype':dtypes[key]})
+                    self.data[col_idx]._set_properties({'dtype':dtypes[key]})
                 else:
-                    self.data[col_idx].add_properties({'dtype':None})
+                    self.data[col_idx]._set_properties({'dtype':None})
                 if isinstance(col_properties,dict):
-                    self.data[col_idx].add_properties(col_properties[key])
+                    self.data[col_idx]._set_properties(col_properties[key])
                 else:
-                    self.data[col_idx].add_properties({'dtype':None})
+                    self.data[col_idx]._set_properties({'dtype':None})
                 col_idx += 1
             self.update_col_lengths()
         else:
@@ -436,7 +484,7 @@ class DataFrame:
             self.data[col_idx] = DataColumn(self.data[col_idx])
         del data;
         for i in range(len(self.columns)):
-            self.data[i].add_properties({'dtype':None})
+            self.data[i]._set_properties({'dtype':None})
         self.update_col_lengths()
         return
 
@@ -518,7 +566,7 @@ class DataFrame:
                             new_data_dict[col_label] = [self.data[col_idx][x] for x in row_selector]
                     else:
                         new_data_dict[col_label] = self.data[col_idx][row_selector]
-                    all_cols_properties[col_label] = self.data[col_idx].get_all_properties()
+                    all_cols_properties[col_label] = self.data[col_idx]._get_all_properties()
             return DataFrame(new_data_dict,col_properties=all_cols_properties)
         elif isinstance(key, int):
             return DataColumn(self.data[key])
@@ -544,7 +592,7 @@ class DataFrame:
             for col_label, col_idx in self.columns.items():
                 if col_idx in new_cols:
                     new_data_dict[col_label] = self.data[col_idx]
-                    all_cols_properties[col_label] = self.data[col_idx].get_all_properties()
+                    all_cols_properties[col_label] = self.data[col_idx]._get_all_properties()
             return DataFrame(new_data_dict,col_properties=all_cols_properties)
 
     def __setitem__(self, key, new_col_values):
@@ -563,7 +611,7 @@ class DataFrame:
                     col_idx = len(self.columns) # b/c current length is 1 greater than current rightmost idn
                     self.columns[key] = len(self.columns)
                     self.data.append([None]*required_col_len)
-                    self.data[col_idx].add_properties({'dtype':None})
+                    self.data[col_idx]._set_properties({'dtype':None})
         elif isinstance(key, int):
             col_idx = key
             col_label = list(self.columns.keys())[col_idx]
@@ -685,7 +733,7 @@ class DataFrame:
         # Column properties are stored within this DataFrame, not with Column class
         for col_name, prop_value in new_properties.items():
             col_idx = self.columns[col_name]
-            self.data[col_idx].add_properties({property_type:prop_value})
+            self.data[col_idx]._set_properties({property_type:prop_value})
             # In addition, if dtype was changed, cast the column into the new dtype
             if property_type == 'dtype':
                 self.data[col_idx].set_type(prop_value)
@@ -759,14 +807,14 @@ class DataFrame:
         col_idx = 0
         for key_col_label, old_col_idx in key_cols.items():
             col_data = sorted_data[old_col_idx]
-            col_props = self.data[old_col_idx].get_all_properties()
+            col_props = self.data[old_col_idx]._get_all_properties()
             col_props['key'] = True
             new_data[key_col_label] = col_data
             new_col_properties[key_col_label] = col_props
             col_idx += 1
         for value_col_label, old_col_idx in value_cols.items():
             col_data = sorted_data[old_col_idx]
-            col_props = self.data[old_col_idx].get_all_properties()
+            col_props = self.data[old_col_idx]._get_all_properties()
             col_props['key'] = False
             new_data[value_col_label] = col_data
             new_col_properties[value_col_label] = col_props
@@ -801,7 +849,7 @@ class DataFrame:
             row_idx += 1
         for col_label, col_idx in self.columns.items():
             new_col_data = new_data[col_idx]
-            new_col_props = self.data[col_idx].get_all_properties()
+            new_col_props = self.data[col_idx]._get_all_properties()
             self.data[col_idx] = DataColumn(new_col_data,col_properties=new_col_props)
         return
 
