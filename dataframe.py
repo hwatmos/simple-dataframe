@@ -52,7 +52,7 @@ def pretty_string(string,color,length=None):
         return f"\033[{colors_dict[color]}m{string}\033[0m"
     else:
         return f"\033[{colors_dict[color]}m{string[:length]}\033[0m"
-
+    
 def is_iterable(obj):
     """Check whether obj is iterable."""
     try:
@@ -168,7 +168,8 @@ class DataColumn:
         """Initiate new column
         
         New column containing the provided data and properties,
-        if provided.
+        if provided. If no col_properties is passed, initiates 
+        all column properties with the value of None.
 
         Parameters
         ----------
@@ -402,74 +403,117 @@ class DataFrame:
     '''
     Simplistic DataFrame
 
-    Properties that must be maintained as columns are added, deleted, or moved:
-    self.data
-    self.columns
-    self.col_properties
+    Consists of columns represented by DataColumn class.
 
     Functions
     ---------
     read_csv
     to_csv
     apply
+
     '''
     def __init__(self,data=None,dtypes=None,col_properties=None):
+        """
+        Initiate new DataFrame, either empty or from values
+        
+        Returns empty DataFrame if data is None. If data is provided,
+        populates the dataframe accordingly. If dtypes are provdied,
+        casts and sets the values accordingly. If col_properties are
+        provided, sets the properties accordingly.
+        Since dtypes can also be specified in col_properties,
+        if both dtypes and col_properties were given, returns error.
+
+        Parameters
+        ----------
+        data : dict {str : iterable}
+               Keys are used as names (short names) for the frame's
+               columns. Defaults to None.
+        dtypes : dict {str : type}
+                 Datatypes to use for each column. Defaults to None.
+        col_properties : dict {str : dict}
+                         For each column, provided a dict of column
+                         properties. Defaults to None.
+        
+        """
         dtypes_provided = isinstance(dtypes,dict)
-        self.default_col_print_length = 10
-        self.max_col_print_length = 10
-        self.min_col_print_length = 5
-        self.rows = NestedDict(assume_sorted=True)
-        self.data = []
-        self.columns = {} # keys are short names; col_properties includes long_name
-        #self.col_properties = []
+        col_props_provided = isinstance(col_properties,dict)
+        # Make sure that only one of dtypes and col_propperties was provided
+        # since col_properties can include dtypes.
+        if dtypes_provided and col_props_provided:
+            raise TypeError("Can only specify one of the parameters dtypes and col_properties")
         values_len = -1
+        # Set default values for internal parameters
+        #self._default_col_print_length = 10
+        self._max_col_print_length = 10
+        self._min_col_print_length = 5
+        self.rows = NestedDict(assume_sorted=True)
+        self._data = []
+        self.columns = {} # keys are short names; col_properties includes long_name
         if data==None:
             pass
         elif isinstance(data,dict):
-            col_idx = 0 # replaced i
+            col_idx = 0 # iterate column index
             for key, values in data.items():
+                # Check column lengths compatibiilty
                 if values_len == -1:
                     values_len = len(values)
                 else:
                     if len(values) != values_len:
                         raise ValueError("Columns have incompatible lengths")
-                self.columns[key] = col_idx
-                self.data.append(DataColumn(values))
-                # Check if dtypes were given:
+                # Check if dtypes were given and store data values
                 if dtypes_provided:
-                    self.data[col_idx]._set_properties({'dtype':dtypes[key]})
+                    self._data.append(DataColumn([dtypes[key](val) for val in values]))
+                    self._data[col_idx]._set_properties({'dtype':dtypes[key]})
+                elif col_props_provided:
+                    self._data.append(DataColumn(values))
+                    self._data[col_idx]._set_properties(col_properties[key])
                 else:
-                    self.data[col_idx]._set_properties({'dtype':None})
-                if isinstance(col_properties,dict):
-                    self.data[col_idx]._set_properties(col_properties[key])
-                else:
-                    self.data[col_idx]._set_properties({'dtype':None})
+                    self._data.append(DataColumn(values))
+                # Add column to columns dict
+                self.columns[key] = col_idx
                 col_idx += 1
-            self.update_col_lengths()
+            self._update_col_lengths()
         else:
             raise TypeError("Data must be of the type'Dict'")
         return
 
-    def update_col_lengths(self,col=None):
+    def _update_col_lengths(self,col=None):
+        """Update the printing width of the column"""
         if col==None:
             for col_label, col_idx in self.columns.items():
-                new_length = min(self.max_col_print_length,max([len(str(x))+1 for x in self.data[col_idx]]))
+                new_length = min(self._max_col_print_length,max([len(str(x))+1 for x in self._data[col_idx]]))
                 new_length = max(new_length,len(col_label)+1)
-                new_length = max(new_length,self.min_col_print_length)
+                new_length = max(new_length,self._min_col_print_length)
                 self.set_property('col_print_length',{col_label:new_length})
             return
         else:
             col_label = col
             col_idx = self.columns[col_label]
-            new_length = min(self.max_col_print_length,max([len(str(x))+1 for x in self.data[col_idx]]))
+            new_length = min(self._max_col_print_length,max([len(str(x))+1 for x in self._data[col_idx]]))
             new_length = max(new_length,len(col_label)+1)
-            new_length = max(new_length,self.min_col_print_length)
+            new_length = max(new_length,self._min_col_print_length)
             self.set_property('col_print_length',{col_label:new_length})
             return
             
     def read_csv(self, file_path):
+        """
+        Read data from a csv file.
+        
+        Populates this frame, if empty, with data read from the csv file file_path.
+        Column headers from the file will be stored as the short column names. If you
+        want to replace them, use set_short_col_names method of this frame in a consequent
+        step.
+
+        Parameters
+        ----------
+        file_path : str
+                    Path to a csv file.
+        
+        """
+        # Make sure this frame is empty
         if len(self.columns) > 0:
             raise RuntimeError("Attemped to overwrite current data with read_csv")
+        # Read the file
         with open(file_path, 'r', newline='') as file:
             csv_reader = csv.reader(file,skipinitialspace=True) # https://docs.python.org/3/library/csv.html
             columns = next(csv_reader)
@@ -479,20 +523,25 @@ class DataFrame:
             for row in csv_reader:
                 processed_row = [None if value == '' else value for value in row]
                 data.append(processed_row)
-        self.data = list(zip(*data))
-        for col_idx, col_data in enumerate(self.data):
-            self.data[col_idx] = DataColumn(self.data[col_idx])
+        self._data = list(zip(*data)) # transpose
+        # Transform into DataColumn types
+        for col_idx, col_data in enumerate(self._data):
+            self._data[col_idx] = DataColumn(col_data)
         del data;
-        for i in range(len(self.columns)):
-            self.data[i]._set_properties({'dtype':None})
-        self.update_col_lengths()
+        self._update_col_lengths()
         return
 
     def to_csv(self, file_path):
+        """
+        Store this frame's data into a csv file
+        
+        INCOMPLETE, need to fix _data and address the questions in the comments.
+        
+        """
         with open(file_path, 'w', newline='') as file: # newline????
             csv_writer = csv.writer(file) # https://docs.python.org/3/library/csv.html
             csv_writer.writerow(list(self.columns.keys()))
-            csv_writer.writerows(self.data)
+            csv_writer.writerows(self._data)
 
     def __getitem__(self, key):
         """
@@ -561,19 +610,19 @@ class DataFrame:
                 if col_label in new_cols:
                     if isinstance(row_selector,list):
                         if isinstance(row_selector[0],bool):
-                            new_data_dict[col_label] = [x for x, is_selected in zip(self.data[col_idx],row_selector) if is_selected]
+                            new_data_dict[col_label] = [x for x, is_selected in zip(self._data[col_idx],row_selector) if is_selected]
                         elif isinstance(row_selector[0],int):
-                            new_data_dict[col_label] = [self.data[col_idx][x] for x in row_selector]
+                            new_data_dict[col_label] = [self._data[col_idx][x] for x in row_selector]
                     else:
-                        new_data_dict[col_label] = self.data[col_idx][row_selector]
-                    all_cols_properties[col_label] = self.data[col_idx]._get_all_properties()
+                        new_data_dict[col_label] = self._data[col_idx][row_selector]
+                    all_cols_properties[col_label] = self._data[col_idx]._get_all_properties()
             return DataFrame(new_data_dict,col_properties=all_cols_properties)
         elif isinstance(key, int):
-            return DataColumn(self.data[key])
+            return DataColumn(self._data[key])
         elif isinstance(key, str):
             try:
                 col_idx = self.columns[key]
-                return DataColumn(self.data[col_idx])
+                return DataColumn(self._data[col_idx])
             except ValueError:
                 raise KeyError(f"Column '{key}' not found")
         elif isinstance(key, list):
@@ -591,12 +640,16 @@ class DataFrame:
             # For each selected column...
             for col_label, col_idx in self.columns.items():
                 if col_idx in new_cols:
-                    new_data_dict[col_label] = self.data[col_idx]
-                    all_cols_properties[col_label] = self.data[col_idx]._get_all_properties()
+                    new_data_dict[col_label] = self._data[col_idx]
+                    all_cols_properties[col_label] = self._data[col_idx]._get_all_properties()
             return DataFrame(new_data_dict,col_properties=all_cols_properties)
 
     def __setitem__(self, key, new_col_values):
-        required_col_len = len(self.data[0])
+        """
+        Modify existing column or create new column.
+        
+        New values must be either DataColumn, list, int, float, str, datetime, or bool."""
+        required_col_len = len(self._data[0])
         if isinstance(key, str):
             col_label = key
             # If exists, find the column index, otherwise check if possible (corrent length) to create the column
@@ -604,44 +657,56 @@ class DataFrame:
                 # Column exists
                 col_idx = self.columns[key]
             else:
-                # Column does not exist
-                if len(new_col_values.as_list()) != required_col_len:
-                    ValueError("Columns have incompatible lengths")
-                else:
-                    col_idx = len(self.columns) # b/c current length is 1 greater than current rightmost idn
-                    self.columns[key] = len(self.columns)
-                    self.data.append([None]*required_col_len)
-                    self.data[col_idx]._set_properties({'dtype':None})
+                col_idx = len(self.columns) # b/c current length is 1 greater than current rightmost idn
+                self.columns[key] = len(self.columns)
+                self._data.append(DataColumn([None]*required_col_len))
         elif isinstance(key, int):
             col_idx = key
             col_label = list(self.columns.keys())[col_idx]
         else:
             raise TypeError("Key must be of the types 'Str' or 'Int'")
         if isinstance(new_col_values, DataColumn):
-            if len(self.data[col_idx]) != len(new_col_values.as_list()):
+            if len(self._data[col_idx]) != len(new_col_values):
                 raise ValueError("Columns have incompatible lengths")
-            self.data[col_idx] = new_col_values.as_list()
+            self._data[col_idx] = new_col_values
         elif isinstance(new_col_values, list):
-            if len(self.data[col_idx]) != len(new_col_values):
+            if len(self._data[col_idx]) != len(new_col_values):
                 raise ValueError("Columns have incompatible lengths")
-            self.data[col_idx] = new_col_values
-        self.update_col_lengths(col=col_label)
+            # Get the properties of the column being replaced and create new column with the same properties
+            col_props = self._data[col_idx]._get_all_properties()
+            self._data[col_idx] = DataColumn(new_col_values,col_properties=col_props)
+        elif isinstance(new_col_values,(int,str,float,bool,datetime,Category)):
+            # Get the properties of the column being replaced and create new column with the same properties
+            col_props = self._data[col_idx]._get_all_properties()
+            self._data[col_idx] = DataColumn([new_col_values]*required_col_len,col_properties=col_props)
+        else:
+            raise TypeError("New column values must be a list, DataColumn, Str, Int, Bool, or Datetime.")
+        self._update_col_lengths(col=col_label)
         return
         
     def __len__(self):
-        return len(self.data[0])
+        return len(self._data[0])
     
     def __repr__(self):
         # Human readable representation or informal, string, representation of the dataframe
-        return str(self.show(start_row=0,nrows=5,show_index=True)) #str(list(self.data))
+        return str(self.show(start_row=0,nrows=5,show_index=True)) #str(list(self._data))
 
     def __iter__(self):
-        return iter(self.data)
+        return iter(self._data)
 
     def show(self,start_row=0,nrows=5,show_index=True):
-        """Print nrows first rows of data
+        """Print the requested rows of data.
+
+        Parameters
+        ----------
+        start_row : int
+                    First row to be printed, default: 0.
+        nrows : int
+                How many rows to print in total, default: 5.
+        show_index : bool
+                     Whether to print index.
         """
-        display_data = [] # each element to represent a row (instead of col as is in self.data
+        display_data = [] # each element to represent a row (instead of col as is in self._data
         prefix_extra_len = len(str(start_row+nrows))-1
         prefix_header1 = "| " 
         prefix_header2 = "| "
@@ -654,7 +719,7 @@ class DataFrame:
             prefix_line = "-"*(3+prefix_extra_len)
             prefix_data="f'{data_idx:>{1+prefix_extra_len}} |'"
         # Slice rows
-        for col in self.data:
+        for col in self._data:
             col = list(it.islice(col,start_row,start_row+nrows))
             display_data.append(col)
         # Transpose for  printing row by row
@@ -664,7 +729,7 @@ class DataFrame:
         row_1_string = ""
         row_1_string += prefix_header1 + " "
         for col_label, col_idx in self.columns.items():
-            col_width = self.data[col_idx].col_print_length
+            col_width = self._data[col_idx].col_print_length
             row_1_string += f"{col_label:^{col_width}}" + ' | '
         print(row_1_string)
         ## Row 2 (dtypes)
@@ -672,8 +737,8 @@ class DataFrame:
         for col_label, col_idx in self.columns.items():
         #for col_prop in self.col_properties:
             try:
-                dtype = self.data[col_idx].dtype
-                col_width = self.data[col_idx].col_print_length
+                dtype = self._data[col_idx].dtype
+                col_width = self._data[col_idx].col_print_length
                 text_to_print = ""
                 if dtype==str:
                     text_to_print = pretty_string(f"{'str':>{col_width}}",'magenta')
@@ -690,11 +755,11 @@ class DataFrame:
         print("\n"+prefix_line+("-"*(len(row_1_string)-1-len(prefix_line))))
         # Print rows, one col at a time
         for r in range(len(display_data)):
-            data_idx = r + start_row
+            data_idx = r + start_row # used in eval(prefix_data)
             print(eval(prefix_data),end=' ')
             for col_idx, col_val in enumerate(display_data[r]):
                 text_to_print = "" # text to print for the current column, formatted below
-                col_width = self.data[col_idx].col_print_length
+                col_width = self._data[col_idx].col_print_length
                 if isinstance(col_val,float):
                     text_to_print=f"{col_val:>{col_width},.1f}"
                 elif col_val==None:
@@ -708,10 +773,10 @@ class DataFrame:
                 print(text_to_print,end = ' | ')
             print('')
         # Return descriptive string
-        return f"DataFrame with {len(self.columns)} columns and {len(self.data[0])} rows"
+        return f"DataFrame with {len(self.columns)} columns and {len(self._data[0])} rows"
 
     def set_property(self,property_type,new_properties):
-        """Set each column's data type accordingly to types
+        """Set the values of a property for one or more columns.
 
         Parameters
         ----------
@@ -733,13 +798,30 @@ class DataFrame:
         # Column properties are stored within this DataFrame, not with Column class
         for col_name, prop_value in new_properties.items():
             col_idx = self.columns[col_name]
-            self.data[col_idx]._set_properties({property_type:prop_value})
+            self._data[col_idx]._set_properties({property_type:prop_value})
             # In addition, if dtype was changed, cast the column into the new dtype
             if property_type == 'dtype':
-                self.data[col_idx].set_type(prop_value)
+                self._data[col_idx].set_type(prop_value)
         return
 
     def set_short_col_names(self,new_names,promote_current_to_long_names=False):
+        """
+        Set or update columns' short names.
+
+        Set short names for DataFrame's columns as indicated by new_names. In addition,
+        if promote_current_to_long_names is True, current short names will be promoted
+        to long names. Short names are used when the DataFrame is printed, they should
+        emphasize brevity over clarity.
+
+        Parameters
+        ----------
+        new_names : dict
+                    Dictionary of current and new names.
+        promote_current_to_long_names : bool
+                                        Whether to promote the current short names 
+                                        to new long names. Default: False.
+
+        """
         new_long_names = {}
         if not isinstance(new_names,dict):
             raise TypeError("new_names must be a dict")
@@ -751,11 +833,13 @@ class DataFrame:
                 del self.columns[cur_label]
             if promote_current_to_long_names:
                 self.set_property('long_name',new_long_names)
+            # Sort column elements to the original order as indicated by the dict values (column indices)
             self.columns = dict(sorted(self.columns.items(), key=lambda item: item[1]))
-            self.update_col_lengths()
+            self._update_col_lengths()
         return
 
     def get_col_names(self):
+        """Get dict of column names  (short : long)"""
         col_names_dict = {}
         for col_short_name, col_idx in self.columns.items():
             try:
@@ -796,25 +880,25 @@ class DataFrame:
 
         self.rows = NestedDict(assume_sorted=True)
         # Iterate row at a time (i.e. iterate transposed data model)
-        #for data_row in zip(*self.data):
+        #for data_row in zip(*self._data):
         #    self.rows[[data_row[dim_value] for dim_value in key_cols_idx]] = [data_row[measure_val] for measure_val in value_cols_idx]
-        for i in range(len(self.data[0])):
-            self.rows[[sorted_data[dim_value][i] for dim_value in key_cols_idx]] = i#[self.data[col][i] for col in range(len(self.data))]
-        #del self.data # most likely delete this line
+        for i in range(len(self._data[0])):
+            self.rows[[sorted_data[dim_value][i] for dim_value in key_cols_idx]] = i#[self._data[col][i] for col in range(len(self._data))]
+        #del self._data # most likely delete this line
         # Recreate DataFrame using the results of this method
         new_data = {}
         new_col_properties = {} # nested dictionary (dict for each column)
         col_idx = 0
         for key_col_label, old_col_idx in key_cols.items():
             col_data = sorted_data[old_col_idx]
-            col_props = self.data[old_col_idx]._get_all_properties()
+            col_props = self._data[old_col_idx]._get_all_properties()
             col_props['key'] = True
             new_data[key_col_label] = col_data
             new_col_properties[key_col_label] = col_props
             col_idx += 1
         for value_col_label, old_col_idx in value_cols.items():
             col_data = sorted_data[old_col_idx]
-            col_props = self.data[old_col_idx]._get_all_properties()
+            col_props = self._data[old_col_idx]._get_all_properties()
             col_props['key'] = False
             new_data[value_col_label] = col_data
             new_col_properties[value_col_label] = col_props
@@ -834,23 +918,26 @@ class DataFrame:
         """
         new_data = [[] for col in self.columns.items()]
         row_idx = 0
+        # Iterate over all unique key combinations
         for key_values in self.rows.enum_levels():
-            print(key_values)
+            # Aggregate values within this key combination, one column at a time
             for col_name, col_idx in self.columns.items():
-                if self.data[col_idx].key:
-                    current_value = self.data[col_idx][self.rows[key_values]][0]
+                # Columns marked as keys are not aggregated -- they are the keys
+                if self._data[col_idx].key:
+                    current_value = self._data[col_idx][self.rows[key_values]][0]
                     new_data[col_idx].append(current_value)
                 else:
-                    current_values = self.data[col_idx][self.rows[key_values]]
-                    print(col_name, current_values)
-                    new_value = self.data[col_idx].aggregation_func(current_values)
+                    # Apply this column's aggregation function
+                    current_values = self._data[col_idx][self.rows[key_values]]
+                    new_value = self._data[col_idx].aggregation_func(current_values)
                     new_data[col_idx].append(new_value)
             self.rows[key_values] = row_idx
             row_idx += 1
+        # Recreate dataframe one column at a time
         for col_label, col_idx in self.columns.items():
             new_col_data = new_data[col_idx]
-            new_col_props = self.data[col_idx]._get_all_properties()
-            self.data[col_idx] = DataColumn(new_col_data,col_properties=new_col_props)
+            new_col_props = self._data[col_idx]._get_all_properties()
+            self._data[col_idx] = DataColumn(new_col_data,col_properties=new_col_props)
         return
 
     def values(self):
@@ -861,7 +948,7 @@ class DataFrame:
         """
         data_values = []
         for col_label, col_idx in self.columns.items():
-            data_values.append(self.data[col_idx].data)
+            data_values.append(self._data[col_idx].data)
         return data_values
 
 class NestedDict:
