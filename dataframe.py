@@ -1011,7 +1011,7 @@ class NestedDict:
         resulting_levels=[]
         if isinstance(self.data[list(self.data.keys())[0]],NestedDict):
             for key, nested_dict in self.data.items():
-                this_result = nested_dict.enum_levels(trail=trail + [key])
+                this_result = nested_dict.list_levels(trail=trail + [key])
                 resulting_levels.extend(this_result)
         else:
             resulting_levels = [trail + [key] for key in self.data.keys()]
