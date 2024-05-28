@@ -727,12 +727,14 @@ class DataFrame:
         prefix_extra_len = len(str(start_row+nrows))-1
         prefix_header1 = "| " 
         prefix_header2 = "| "
+        prefix_header3 = "| "
         prefix_line = "--"
         prefix_data = "f'| '"
         # Prepare prefix
         if show_index:
             prefix_header1 = f"{' ':>{1+prefix_extra_len}} |"
-            prefix_header2 = f"{'i':>{1+prefix_extra_len}} |"
+            prefix_header2 = f"{' ':>{1+prefix_extra_len}} |"
+            prefix_header3 = f"{'i':>{1+prefix_extra_len}} |"
             prefix_line = "-"*(3+prefix_extra_len)
             prefix_data="f'{data_idx:>{1+prefix_extra_len}} |'"
         # Slice rows
@@ -752,7 +754,6 @@ class DataFrame:
         ## Row 2 (dtypes)
         print(prefix_header2,end=' ')
         for col_label, col_idx in self.columns.items():
-        #for col_prop in self.col_properties:
             try:
                 dtype = self._data[col_idx].dtype
                 col_width = self._data[col_idx].col_print_length
@@ -768,6 +769,27 @@ class DataFrame:
                 print(text_to_print,end = ' | ')
             except:
                 pass
+        ## Row 3 (aggregation summary)
+        print()
+        print(prefix_header3,end=' ')
+        for col_label, col_idx in self.columns.items():
+            col_width = self._data[col_idx].col_print_length
+            # If this is a key column, indicate that, otherwise get the aggregation function's name
+            if self._data[col_idx].key:
+                agg_funct_string = "*"
+            else:
+                try:
+                    agg_funct_string = self._data[col_idx].aggregation_func.__name__
+                except AttributeError:
+                    agg_funct_string = ""
+            warning_string = " !" if sum(self._data[col_idx].isna())>0 else ""
+            agg_funct_string = agg_funct_string[:(col_width-len(warning_string))] # shorten the string if necessary
+            
+            text_to_print = f"{agg_funct_string:>{col_width-len(warning_string)}}"+pretty_string(warning_string,'red')
+            print(text_to_print,end = ' | ')
+            #except:
+            #    pass
+        
         # Break line
         print("\n"+prefix_line+("-"*(len(row_1_string)-1-len(prefix_line))))
         # Print rows, one col at a time
