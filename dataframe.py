@@ -822,6 +822,10 @@ class DataFrame:
                                         to new long names. Default: False.
 
         """
+        # Make sure none of the new names is not already taken
+        for new_label in new_names.values():
+            if new_label in self.columns.keys():
+                raise ValueError(f"Column {new_label} already exists")
         new_long_names = {}
         if not isinstance(new_names,dict):
             raise TypeError("new_names must be a dict")
