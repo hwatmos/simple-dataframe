@@ -858,6 +858,8 @@ class DataFrame:
         The resulting rows property can be accessed via selector by listing
         key values in their hierarchical order.
 
+        Returns a DataFrame.
+
         Examples
         --------
         df = DataFrame({'col_a':['A','B','A','B'],'col_b':[0,0,1,1],'val':[1,2,3,4]})
