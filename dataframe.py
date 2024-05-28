@@ -195,6 +195,7 @@ class DataColumn:
                 setattr(self, attr_name, attr_val)
         else:
             raise TypeError("property_dict parameter must be of the type 'Dict'")
+        return
 
     def _get_property(self, property_name):
         """Extract a property value"""
