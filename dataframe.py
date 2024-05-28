@@ -635,11 +635,11 @@ class DataFrame:
                     all_cols_properties[col_label] = self._data[col_idx]._get_all_properties()
             return DataFrame(new_data_dict,col_properties=all_cols_properties)
         elif isinstance(key, int):
-            return DataColumn(self._data[key])
+            return DataColumn(self._data[key],col_properties=self._data[key]._get_all_properties())
         elif isinstance(key, str):
             try:
                 col_idx = self.columns[key]
-                return DataColumn(self._data[col_idx])
+                return DataColumn(self._data[col_idx],col_properties=self._data[col_idx]._get_all_properties())
             except ValueError:
                 raise KeyError(f"Column '{key}' not found")
         elif isinstance(key, list):
