@@ -376,7 +376,7 @@ class DataColumn:
             raise TypeError("Can only compare to another DataColumn")
 
     def as_type(self, new_type):
-        """Returnd DataColumn equivalent to this but with values cast to new_type"""
+        """Returns DataColumn equivalent to this but with values cast to new_type"""
         casted_values = []
         for val in self.data:
             try:
