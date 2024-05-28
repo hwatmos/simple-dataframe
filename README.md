@@ -10,7 +10,7 @@ The main means of accomplishing a simplified data science workflow is by designi
 
 ## Functionality
 
-**Important!**
+**Important to-dos**
 * Check for duplicate column labels.
 * 
 
