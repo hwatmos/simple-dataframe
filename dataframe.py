@@ -80,6 +80,17 @@ def element_wise_comparison(func, list_1, list_2):
     else:
         raise TypeError("Can only compare against the types 'Int,' 'Float,' 'Str,' or 'List'")
 
+def aggregate_ignore_none(iterable, aggregation_func):
+    """
+    Aggregate function that ignores None values.
+    
+    If all values are None, returns None.
+    """
+    filtered_values = [value for value in iterable if value is not None]
+    if not filtered_values:
+        return None
+    return aggregation_func(filtered_values)
+
 class Category:
     """Data format for categorical data
 
@@ -154,6 +165,7 @@ class DataColumn:
     lr(other)
     set_type(new_type)
     isna()
+    any_na()
 
     Examples
     --------
@@ -393,6 +405,10 @@ class DataColumn:
     def isna(self):
         """Return list of bools indicating missing values"""
         return list(map(lambda x: x==None,self.data))
+
+    def any_na(self):
+        """Return True if any value is None"""
+        return any(map(lambda x: x == None,self.data))
 
     def fillna(self,fill_val):
         """Return DataColumn with fill_value in place of missing values"""
@@ -914,7 +930,7 @@ class DataFrame:
         resulting_data_frame.rows = self.rows
         return resulting_data_frame
 
-    def aggregate(self):
+    def aggregate(self,ignore_na=False):
         """Aggregates DataFrame using its keys.
 
         Keys must be set before aggregating. Aggregation_func property
@@ -922,7 +938,20 @@ class DataFrame:
         This method will reshape the data by creating one record 
         for each unique key combination. Values are aggregated using 
         aggregation_func property of each column.
+
+        Parameters
+        ----------
+        ignore_na : bool
+                    If set to True, will ignore any None values.
+                    If an aggregation group contains only None values
+                    for a column, that column's new value is set to None.
+                    Defaults to False.
         """
+        # Check for nulls
+        if not ignore_na:
+            for col_name, col_idx in self.columns.items():
+                if self._data[col_idx].any_na():
+                    raise ValueError(f"Missing value in column {col_name}")
         new_data = [[] for col in self.columns.items()]
         row_idx = 0
         # Iterate over all unique key combinations
@@ -936,6 +965,8 @@ class DataFrame:
                 else:
                     # Apply this column's aggregation function
                     current_values = self._data[col_idx][self.rows[key_values]]
+                    if ignore_na:
+                        current_values = [value for value in current_values if value is not None]
                     new_value = self._data[col_idx].aggregation_func(current_values)
                     new_data[col_idx].append(new_value)
             self.rows[key_values] = row_idx
