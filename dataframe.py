@@ -925,7 +925,7 @@ class DataFrame:
         new_data = [[] for col in self.columns.items()]
         row_idx = 0
         # Iterate over all unique key combinations
-        for key_values in self.rows.enum_levels():
+        for key_values in self.rows.list_levels():
             # Aggregate values within this key combination, one column at a time
             for col_name, col_idx in self.columns.items():
                 # Columns marked as keys are not aggregated -- they are the keys
@@ -1002,7 +1002,12 @@ class NestedDict:
     def labels(self):
         return list(self.data.keys())
 
-    def enum_levels(self, trail=[]):
+    def list_levels(self, trail=[]):
+        """Generate list of allkey combinations.
+        
+        All, i.e. all levels', keys are returned as a nested list.
+        Each inner list contains the keys for each key column.
+        """
         resulting_levels=[]
         if isinstance(self.data[list(self.data.keys())[0]],NestedDict):
             for key, nested_dict in self.data.items():
