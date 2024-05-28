@@ -801,7 +801,7 @@ class DataFrame:
             self._data[col_idx]._set_properties({property_type:prop_value})
             # In addition, if dtype was changed, cast the column into the new dtype
             if property_type == 'dtype':
-                self._data[col_idx].set_type(prop_value)
+                self._data[col_idx] = self._data[col_idx].as_type(prop_value)
         return
 
     def set_short_col_names(self,new_names,promote_current_to_long_names=False):
