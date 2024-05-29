@@ -302,8 +302,7 @@ class DataColumn:
         return DataColumn(element_wise_comparison(operator.gt,self, other))
         
     def __repr__(self):
-        print(self.data[:5])
-        return "Column"
+        return f"DataColumn of size {len(self)}"
 
     def as_list(self):
         """Return this column's values as a list"""
@@ -713,8 +712,7 @@ class DataFrame:
         return len(self._data[0])
     
     def __repr__(self):
-        # Human readable representation or informal, string, representation of the dataframe
-        return str(self.show(start_row=0,nrows=5,show_index=True)) #str(list(self._data))
+        return f"DataFrame with {len(self.columns)} columns and {len(self)} rows"
 
     def __iter__(self):
         return iter(self._data)
