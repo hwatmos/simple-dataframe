@@ -909,6 +909,8 @@ class DataFrame:
         key_cols_idx = [] # list of indices' idx in data
         value_cols = {}
         value_cols_idx = []
+        if not isinstance(key_col_labels, list):
+            key_col_labels = [key_col_labels]
         # List out index labels and locations
         for col_label in key_col_labels:
             key_cols[col_label] = self.columns[col_label]
