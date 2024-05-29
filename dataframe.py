@@ -7,6 +7,16 @@ from collections import defaultdict
 
 ALLOWED_COL_PROPERTIES = ['dtype','long_name','col_print_length','key','aggregation_func']
 
+def nunique(values: list):
+    """Count of unique values"""
+    return lambda x: len(set(x))
+
+def count(values: list):
+    """Count non-missing values"""
+    return len(x for x in values if x is not None)
+
+agg_functions ={'nunique':nunique,'mean':statistics.mean,'sum':sum,'median':statistics.median,'min':min,'max':max,'std':statistics.stdev,'var':statistics.variance,'count':count,'len':len}
+
 def pretty_string(string,color,length=None):
     """Trim to length and change color of provided string.
 
@@ -205,7 +215,13 @@ class DataColumn:
         """Set column property"""
         if isinstance(property_dict, dict):
             for attr_name, attr_val in property_dict.items():
-                setattr(self, attr_name, attr_val)
+                if attr_name == 'aggregation_func':
+                    if isinstance(attr_val,str):
+                        setattr(self, attr_name, agg_functions[attr_val])
+                    else:
+                        setattr(self,attr_name,attr_val)
+                else:
+                    setattr(self, attr_name, attr_val)
         else:
             raise TypeError("property_dict parameter must be of the type 'Dict'")
         return
