@@ -591,7 +591,6 @@ class DataFrame:
         """
         all_cols_properties = {}
         if isinstance(key,tuple):
-            print('check')
             new_data_dict = {} # Store the selected data, then use it to create and return new DataFrame
             new_cols = []
             use_all_cols = False
