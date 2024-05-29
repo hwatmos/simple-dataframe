@@ -1046,6 +1046,15 @@ class DataFrame:
         else:
             return data_values
         
+    def dict(self):
+        """
+        Returns a dict that represents this data frame
+        """
+        data_dict = {}
+        for col_label, col_idx in self.columns.items():
+            data_dict[col_balel] = self._data[col_idx].data
+        return data_dict
+
 
 class NestedDict:
     def __init__(self,assume_sorted:bool):
