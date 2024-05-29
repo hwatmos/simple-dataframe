@@ -1010,16 +1010,42 @@ class DataFrame:
             self._data[col_idx] = DataColumn(new_col_data,col_properties=new_col_props)
         return
 
-    def values(self):
+    def values(self, transpose=False, skip_col_labels=[], return_labels=False):
         """
         Returns a nested list of values.
 
         The returned nested list has shape n_cols x n_rows.
+
+        Parameters
+        ----------
+        transpose : Boolean
+                    If True, will transpose to n_rows x n_cols.
+                    Default False.
+        skip_col_labels : List of strings
+                          List of which columns to exclude from
+                          the output.  Defaults to [] (empty list).
+        return_labels : Bool
+                        Whether also to return list of labels of columns
+                        which were actually returns. Default False
+
+        Returns
+        -------
+        list if return_labels is False.
+        (list, labels) if return_labels is True.
         """
         data_values = []
+        data_labels = []
         for col_label, col_idx in self.columns.items():
-            data_values.append(self._data[col_idx].data)
-        return data_values
+            if not col_label in skip_col_labels:
+                data_values.append(self._data[col_idx].data)
+                data_labels.append(col_label)
+        if transpose:
+            data_values = list(zip(*data_values))
+        if return_labels:
+            return (data_values, data_labels)
+        else:
+            return data_values
+        
 
 class NestedDict:
     def __init__(self,assume_sorted:bool):
