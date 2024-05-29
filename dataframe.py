@@ -429,7 +429,7 @@ class DataFrame:
     apply
 
     '''
-    def __init__(self,data=None,dtypes=None,col_properties=None):
+    def __init__(self,data=None,dtypes=None,col_properties=None,row_index=None,row_index_labels=None):
         """
         Initiate new DataFrame, either empty or from values
         
@@ -466,6 +466,8 @@ class DataFrame:
         self.rows = NestedDict(assume_sorted=True)
         self._data = []
         self.columns = {} # keys are short names; col_properties includes long_name
+        self.row_index = NestedDict(assume_sorted=True)
+        self.row_index_labels = []
         if data==None:
             pass
         elif isinstance(data,dict):
@@ -490,6 +492,8 @@ class DataFrame:
                 self.columns[key] = col_idx
                 col_idx += 1
             self._update_col_lengths()
+            self.rows = row_index
+            self.row_index_labels = row_index_labels
         else:
             raise TypeError("Data must be of the type'Dict'")
         return
@@ -633,7 +637,9 @@ class DataFrame:
                     else:
                         new_data_dict[col_label] = self._data[col_idx][row_selector]
                     all_cols_properties[col_label] = self._data[col_idx]._get_all_properties()
-            return DataFrame(new_data_dict,col_properties=all_cols_properties)
+            # Extract index info so it can be passed to the new frame
+            new_row_index_labels = [col for col in self.row_index_labels if col in new_data_dict.keys()]
+            return DataFrame(new_data_dict,col_properties=all_cols_properties,row_index_labels=new_row_index_labels) # Do not replicate the same row_index as in self because it may be based on columns that were not selected.  row_index_labels is ok
         elif isinstance(key, int):
             return DataColumn(self._data[key],col_properties=self._data[key]._get_all_properties())
         elif isinstance(key, str):
@@ -659,7 +665,9 @@ class DataFrame:
                 if col_idx in new_cols:
                     new_data_dict[col_label] = self._data[col_idx]
                     all_cols_properties[col_label] = self._data[col_idx]._get_all_properties()
-            return DataFrame(new_data_dict,col_properties=all_cols_properties)
+            # Extract index info so it can be passed to the new frame
+            new_row_index_labels = [col for col in self.row_index_labels if col in new_data_dict.keys()]
+            return DataFrame(new_data_dict,col_properties=all_cols_properties,row_index_labels=new_row_index_labels)
 
     def __setitem__(self, key, new_col_values):
         """
@@ -891,7 +899,7 @@ class DataFrame:
                 col_names_dict[col_short_name] = None
         return col_names_dict
 
-    def set_row_index(self,key_col_labels):
+    def set_row_index(self,key_col_labels,return_index=False):
         """Builds the rows property based on the list of keys key_col_labels.
 
         The resulting rows property can be accessed via selector by listing
@@ -925,34 +933,34 @@ class DataFrame:
         # Sort data according to the provided keys
         sorted_data=list(zip(*sorted(zip(*self.values()),key=lambda x: [x[col] for col in key_cols_idx])))
 
-        self.rows = NestedDict(assume_sorted=True)
-        # Iterate row at a time (i.e. iterate transposed data model)
-        #for data_row in zip(*self._data):
-        #    self.rows[[data_row[dim_value] for dim_value in key_cols_idx]] = [data_row[measure_val] for measure_val in value_cols_idx]
+        rows = NestedDict(assume_sorted=True)
+        # Create index
+        ## Iterate row at a time (i.e. iterate transposed data model)
         for i in range(len(self._data[0])):
-            self.rows[[sorted_data[dim_value][i] for dim_value in key_cols_idx]] = i#[self._data[col][i] for col in range(len(self._data))]
-        #del self._data # most likely delete this line
+            rows[[sorted_data[dim_value][i] for dim_value in key_cols_idx]] = i#[self._data[col][i] for col in range(len(self._data))]
         # Recreate DataFrame using the results of this method
-        new_data = {}
-        new_col_properties = {} # nested dictionary (dict for each column)
-        col_idx = 0
-        for key_col_label, old_col_idx in key_cols.items():
-            col_data = sorted_data[old_col_idx]
-            col_props = self._data[old_col_idx]._get_all_properties()
-            col_props['key'] = True
-            new_data[key_col_label] = col_data
-            new_col_properties[key_col_label] = col_props
-            col_idx += 1
-        for value_col_label, old_col_idx in value_cols.items():
-            col_data = sorted_data[old_col_idx]
-            col_props = self._data[old_col_idx]._get_all_properties()
-            col_props['key'] = False
-            new_data[value_col_label] = col_data
-            new_col_properties[value_col_label] = col_props
-            col_idx +=1
-        resulting_data_frame = DataFrame(new_data, col_properties=new_col_properties)
-        resulting_data_frame.rows = self.rows
-        return resulting_data_frame
+        if not return_index:
+            new_data = {}
+            new_col_properties = {} # nested dictionary (dict for each column)
+            col_idx = 0
+            for key_col_label, old_col_idx in key_cols.items():
+                col_data = sorted_data[old_col_idx]
+                col_props = self._data[old_col_idx]._get_all_properties()
+                col_props['key'] = True
+                new_data[key_col_label] = col_data
+                new_col_properties[key_col_label] = col_props
+                col_idx += 1
+            for value_col_label, old_col_idx in value_cols.items():
+                col_data = sorted_data[old_col_idx]
+                col_props = self._data[old_col_idx]._get_all_properties()
+                col_props['key'] = False
+                new_data[value_col_label] = col_data
+                new_col_properties[value_col_label] = col_props
+                col_idx +=1
+            resulting_data_frame = DataFrame(new_data,col_properties=new_col_properties,row_index=rows,row_index_labels=key_col_labels)
+            return resulting_data_frame
+        else:
+            return rows
 
     def aggregate(self,ignore_na=False):
         """Aggregates DataFrame using its keys.
