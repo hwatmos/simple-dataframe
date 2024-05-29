@@ -1085,11 +1085,9 @@ class DataFrame:
             else:
                 r_data = r_full_data[r_slicer]
                 r_len = len(r_data)
-            repeat_n = r_len # For left join, left values must be repeated this many times due to multiple corresponding right values
-            joined_data = list(zip(*l_data*repeat_n)) # left data transposed to cols x rows
-            joined_data.extend(list(zip(*r_data))) # append right columns
-            new_data.extend(list(zip(*joined_data))) # append joined rows to new_data
-            # Update l_slicer if records had to be repeated
+            joined_data = [list(it.chain(x[0],x[1])) for x in list(it.product(l_data,r_data))]
+            new_data.extend(joined_data)
+        # Update l_slicer if records had to be repeated
         # Final preparation to construct the resulting DataFrame
         ## Transpose new_data to cols x rows
         new_data = list(zip(*new_data))
