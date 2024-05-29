@@ -148,7 +148,8 @@ class DataColumn:
 
     Methods
     -------
-    apply(func):
+    apply(func)
+    sum()
     min()
     max()
     mean()
@@ -314,6 +315,10 @@ class DataColumn:
     def apply(self, func):
         """Map func onto this column's values"""
         return DataColumn(list(map(func,self.data)))
+
+    def sum(self):
+        """Return the sum of this column's values"""
+        return sum(self.data)
 
     def min(self):
         """Return the smallest of this column's values"""
