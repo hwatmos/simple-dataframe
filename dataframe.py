@@ -621,7 +621,8 @@ class DataFrame:
                     new_cols[i] = list(self.columns.keys())[col]
                 else:
                     raise TypeError("Column selector must contain str or int values.")
-            # For each selected column...
+            # Extract data here
+            ## For each selected column...
             for col_label, col_idx in self.columns.items():
                 if col_label in new_cols:
                     if isinstance(row_selector,list):
