@@ -923,7 +923,7 @@ class DataFrame:
                 value_cols[col_label] = col_idx
                 value_cols_idx.append(col_idx)
         # Sort data according to the provided keys
-        sorted_data=list(zip(*sorted(zip(*df.values()),key=lambda x: [x[col] for col in key_cols_idx])))
+        sorted_data=list(zip(*sorted(zip(*self.values()),key=lambda x: [x[col] for col in key_cols_idx])))
 
         self.rows = NestedDict(assume_sorted=True)
         # Iterate row at a time (i.e. iterate transposed data model)
