@@ -1055,6 +1055,54 @@ class DataFrame:
             data_dict[col_balel] = self._data[col_idx].data
         return data_dict
 
+    def join(self, other):
+        """
+        Join other df to this using Left Join approach.
+    
+        Assumes that both frames have been indexed using the same key columns.
+        """
+        # Empty list for resulting data
+        new_data = []
+        # Transpose data to avoid repetitive slicing of the same indices
+        l_full_data, l_col_labels = self.values(transpose=True, return_labels=True)
+        r_full_data, r_col_labels = other.values(transpose=True, skip_col_labels=other.row_index_labels, return_labels=True) # key cols are already in l_full_data
+        # Get indices
+        l_index = self.rows
+        r_index = other.rows
+        joined_index = NestedDict(assume_sorted=True)
+        # Helper:
+        n_left_cols = len(l_col_labels)
+        # Iterate overal all index keys and construct new data
+        for keys in l_index.list_levels():
+            l_slicer = l_index[*keys]
+            l_data = l_full_data[l_slicer]
+            l_len = len(l_data)
+            r_slicer = r_index[*keys]
+            if r_slicer == None:
+                # Create dummy r_data while keeping correct number of columns
+                r_data = [[None] for _ in r_col_labels]
+                r_len = 1
+            else:
+                r_data = r_full_data[r_slicer]
+                r_len = len(r_data)
+            repeat_n = r_len # For left join, left values must be repeated this many times due to multiple corresponding right values
+            joined_data = list(zip(*l_data*repeat_n)) # left data transposed to cols x rows
+            joined_data.extend(list(zip(*r_data))) # append right columns
+            new_data.extend(list(zip(*joined_data))) # append joined rows to new_data
+            # Update l_slicer if records had to be repeated
+        # Final preparation to construct the resulting DataFrame
+        ## Transpose new_data to cols x rows
+        new_data = list(zip(*new_data))
+        new_data_dict = {}
+        new_data_props = {}
+        ## Iterate over new columns (two iterators, one over left, one over right)
+        for i, col_label in enumerate(l_col_labels):
+            new_data_dict[col_label] = new_data[i]
+            new_data_props[col_label] = self[col_label]._get_all_properties()
+        for i, col_label in enumerate(r_col_labels):
+            new_data_dict[col_label] = new_data[i+n_left_cols]
+            new_data_props[col_label] = other[col_label]._get_all_properties()
+        return DataFrame(new_data_dict, col_properties=new_data_props)
 
 class NestedDict:
     def __init__(self,assume_sorted:bool):
