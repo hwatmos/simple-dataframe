@@ -300,26 +300,26 @@ class DataColumn:
             raise TypeError("Can only divide by the types 'Int,' or 'Float'")
 
     def __eq__(self, other):
-        return DataColumn(element_wise_comparison(operator.eq,self, other))
+        return element_wise_comparison(operator.eq,self, other)
 
     def __lt__(self, other):
-        return DataColumn(element_wise_comparison(operator.lt,self, other))
+        return element_wise_comparison(operator.lt,self, other)
 
     def __le__(self, other):
         
-        return DataColumn(element_wise_comparison(operator.le,self, other))
+        return element_wise_comparison(operator.le,self, other)
 
     def __ne__(self, other):
         
-        return DataColumn(element_wise_comparison(operator.ne,self, other))
+        return element_wise_comparison(operator.ne,self, other)
 
     def __ge__(self, other):
         
-        return DataColumn(element_wise_comparison(operator.ge,self, other))
+        return element_wise_comparison(operator.ge,self, other)
 
     def __gt__(self, other):
         
-        return DataColumn(element_wise_comparison(operator.gt,self, other))
+        return element_wise_comparison(operator.gt,self, other)
         
     def __repr__(self):
         # Redirect stdout to a StringIO object
