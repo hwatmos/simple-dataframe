@@ -4,6 +4,8 @@ import itertools as it
 import datetime
 import statistics
 from collections import defaultdict
+import sys
+from io import StringIO
 
 ALLOWED_COL_PROPERTIES = ['dtype','long_name','col_print_length','key','aggregation_func']
 
@@ -319,7 +321,16 @@ class DataColumn:
         return DataColumn(element_wise_comparison(operator.gt,self, other))
         
     def __repr__(self):
-        return f"DataColumn of size {len(self)}"
+        # Redirect stdout to a StringIO object
+        stdout_backup = sys.stdout
+        sys.stdout = StringIO()
+        # Call the method
+        print(self.data[:5])
+        # Get the captured output
+        captured_output = sys.stdout.getvalue()
+        # Restore stdout
+        sys.stdout = stdout_backup
+        return f"{captured_output}\nDataColumn of size {len(self)}"
 
     def as_list(self):
         """Return this column's values as a list"""
@@ -733,7 +744,16 @@ class DataFrame:
         return len(self._data[0])
     
     def __repr__(self):
-        return f"DataFrame with {len(self.columns)} columns and {len(self)} rows"
+        # Redirect stdout to a StringIO object
+        stdout_backup = sys.stdout
+        sys.stdout = StringIO()
+        # Call the method
+        self.show()
+        # Get the captured output
+        captured_output = sys.stdout.getvalue()
+        # Restore stdout
+        sys.stdout = stdout_backup
+        return f"{captured_output}\nDataFrame with {len(self.columns)} columns and {len(self)} rows"
 
     def __iter__(self):
         return iter(self._data)
