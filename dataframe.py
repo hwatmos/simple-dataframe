@@ -806,6 +806,18 @@ class DataFrame:
         show_index : bool
                      Whether to print index.
         """
+        screen_max_x = 80
+        # Calculate how many columns we are able to display on the screen, assuming screen size screen_max_x
+        # Header rows will keep track of columns in their respective loops
+        # Data rows will be limited by limiting the display_data nested list's dimensions
+        prefix_extra_len = len(str(start_row+nrows))-1
+        screen_cols_length = prefix_extra_len
+        screen_cols_num = 0
+        while screen_cols_length < screen_max_x and screen_cols_num < len(self.columns):
+            screen_cols_length += self._data[screen_cols_num].col_print_length
+            screen_cols_num += 1
+        screen_cols_num -= 1
+        # Prep
         display_data = [] # each element to represent a row (instead of col as is in self._data
         prefix_extra_len = len(str(start_row+nrows))-1
         prefix_header1 = "| " 
@@ -821,7 +833,9 @@ class DataFrame:
             prefix_line = "-"*(3+prefix_extra_len)
             prefix_data="f'{data_idx:>{1+prefix_extra_len}} |'"
         # Slice rows
-        for col in self._data:
+        for col_idx, col in enumerate(self._data):
+            if col_idx > screen_cols_num:
+                break
             col = list(it.islice(col,start_row,start_row+nrows))
             display_data.append(col)
         # Transpose for  printing row by row
@@ -831,12 +845,16 @@ class DataFrame:
         row_1_string = ""
         row_1_string += prefix_header1 + " "
         for col_label, col_idx in self.columns.items():
+            if col_idx > screen_cols_num:
+                break
             col_width = self._data[col_idx].col_print_length
             row_1_string += f"{col_label:^{col_width}}" + ' | '
         print(row_1_string)
         ## Row 2 (dtypes)
         print(prefix_header2,end=' ')
         for col_label, col_idx in self.columns.items():
+            if col_idx > screen_cols_num:
+                break
             try:
                 dtype = self._data[col_idx].dtype
                 col_width = self._data[col_idx].col_print_length
@@ -856,6 +874,8 @@ class DataFrame:
         print()
         print(prefix_header3,end=' ')
         for col_label, col_idx in self.columns.items():
+            if col_idx > screen_cols_num:
+                break
             col_width = self._data[col_idx].col_print_length
             # If this is a key column, indicate that, otherwise get the aggregation function's name
             if self._data[col_idx].key:
