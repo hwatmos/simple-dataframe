@@ -699,7 +699,10 @@ class DataFrame:
                         new_data_dict[col_label] = self._data[col_idx][row_selector]
                     all_cols_properties[col_label] = self._data[col_idx]._get_all_properties()
             # Extract index info so it can be passed to the new frame
-            new_row_index_labels = [col for col in self.row_index_labels if col in new_data_dict.keys()]
+            if self.row_index_labels is not None:
+                new_row_index_labels = [col for col in self.row_index_labels if col in new_data_dict.keys()]
+            else:
+                new_row_index_labels = None
             return DataFrame(new_data_dict,col_properties=all_cols_properties,row_index_labels=new_row_index_labels) # Do not replicate the same row_index as in self because it may be based on columns that were not selected.  row_index_labels is ok
         elif isinstance(key, int):
             return DataColumn(self._data[key],col_properties=self._data[key]._get_all_properties())
@@ -727,7 +730,10 @@ class DataFrame:
                     new_data_dict[col_label] = self._data[col_idx]
                     all_cols_properties[col_label] = self._data[col_idx]._get_all_properties()
             # Extract index info so it can be passed to the new frame
-            new_row_index_labels = [col for col in self.row_index_labels if col in new_data_dict.keys()]
+            if self.row_index_labels is not None:
+                new_row_index_labels = [col for col in self.row_index_labels if col in new_data_dict.keys()]
+            else:
+                new_row_index_labels = None
             return DataFrame(new_data_dict,col_properties=all_cols_properties,row_index_labels=new_row_index_labels)
 
     def __setitem__(self, key, new_col_values):
