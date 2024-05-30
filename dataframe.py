@@ -11,7 +11,7 @@ ALLOWED_COL_PROPERTIES = ['dtype','long_name','col_print_length','key','aggregat
 
 def nunique(values: list):
     """Count of unique values"""
-    return lambda x: len(set(x))
+    return len(set(values))
 
 def count(values: list):
     """Count non-missing values"""
