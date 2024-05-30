@@ -794,18 +794,23 @@ class DataFrame:
     def __iter__(self):
         return iter(self._data)
 
-    def show(self,start_row=0,nrows=5,show_index=True):
+    def show(self,rows=5,show_index=True):
         """Print the requested rows of data.
 
         Parameters
         ----------
-        start_row : int
-                    First row to be printed, default: 0.
-        nrows : int
-                How many rows to print in total, default: 5.
+        rows : int or list
+               If int, indicates how many top rows to print. 
+               If list, must have format [first_row, n_rows].
         show_index : bool
                      Whether to print index.
         """
+        if isinstance(rows,int):
+            start_row=0
+            nrows=rows
+        else:
+            start_row=rows[0]
+            nrows=rows[1]
         screen_max_x = 80
         # Calculate how many columns we are able to display on the screen, assuming screen size screen_max_x
         # Header rows will keep track of columns in their respective loops
