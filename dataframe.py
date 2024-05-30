@@ -629,7 +629,33 @@ class DataFrame:
         
         """
         all_cols_properties = {}
-        if isinstance(key,tuple):
+        if isinstance(key,list) and len(key)==len(self):
+            new_data_dict = {} # Store the selected data, then use it to create and return new DataFrame
+            new_cols = list(self.columns.keys())
+            # Extract row selector
+            if isinstance(key,DataColumn):
+                row_selector = key.data
+            else:
+                row_selector = key
+            # Extract data here
+            ## For each selected column...
+            for col_label, col_idx in self.columns.items():
+                if col_label in new_cols:
+                    if isinstance(row_selector,list):
+                        if isinstance(row_selector[0],bool):
+                            new_data_dict[col_label] = [x for x, is_selected in zip(self._data[col_idx],row_selector) if is_selected]
+                        elif isinstance(row_selector[0],int):
+                            new_data_dict[col_label] = [self._data[col_idx][x] for x in row_selector]
+                    else:
+                        new_data_dict[col_label] = self._data[col_idx][row_selector]
+                    all_cols_properties[col_label] = self._data[col_idx]._get_all_properties()
+            # Extract index info so it can be passed to the new frame
+            if self.row_index_labels is not None:
+                new_row_index_labels = [col for col in self.row_index_labels if col in new_data_dict.keys()]
+            else:
+                new_row_index_labels = None
+            return DataFrame(new_data_dict,col_properties=all_cols_properties,row_index_labels=new_row_index_labels) # Do not replicate the same row_index as in self because it may be based on columns that were not selected.  row_index_labels is ok
+        elif isinstance(key,tuple):
             new_data_dict = {} # Store the selected data, then use it to create and return new DataFrame
             new_cols = []
             use_all_cols = False
