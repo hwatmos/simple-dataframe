@@ -984,7 +984,8 @@ class DataFrame:
                 del self.columns[cur_label]
             if promote_current_to_long_names:
                 self.set_property('long_name',new_long_names)
-            # Sort column elements to the original order as indicated by the dict values (column indices)
+            # Sort columns dict according to column numbers, because the renaming operation above
+            # has moved the renamed columns to the end of the dict
             self.columns = dict(sorted(self.columns.items(), key=lambda item: item[1]))
             self._update_col_lengths()
         return
