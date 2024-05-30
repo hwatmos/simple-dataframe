@@ -179,6 +179,7 @@ class DataColumn:
     set_type(new_type)
     isna()
     any_na()
+    unique()
 
     Examples
     --------
@@ -446,6 +447,9 @@ class DataColumn:
         new_values = list(map(lambda x: fill_val if x==None else x,self.data))
         col_props = self._get_all_properties()
         return DataColumn(new_values,col_properties=col_props)
+
+    def unique(self):
+        return(list(set(self.data)))
         
 class DataFrame:
     '''
