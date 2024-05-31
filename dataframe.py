@@ -178,6 +178,7 @@ class DataColumn:
     lr(other)
     set_type(new_type)
     isna()
+    fillna()
     any_na()
     unique()
 
@@ -501,7 +502,6 @@ class DataFrame:
         self.rows = NestedDict(assume_sorted=True)
         self._data = []
         self.columns = {} # keys are short names; col_properties includes long_name
-        self.row_index = NestedDict(assume_sorted=True)
         self.row_index_labels = []
         if data==None:
             pass
@@ -535,6 +535,7 @@ class DataFrame:
 
     def _update_col_lengths(self,col=None):
         """Update the printing width of the column"""
+        # Calculate all columns' (or defined col) print lengths
         if col==None:
             for col_label, col_idx in self.columns.items():
                 new_length = min(self._max_col_print_length,max([len(str(x))+1 for x in self._data[col_idx]]))
@@ -757,20 +758,22 @@ class DataFrame:
             col_label = list(self.columns.keys())[col_idx]
         else:
             raise TypeError("Key must be of the types 'Str' or 'Int'")
+        # DataColumn was provided
         if isinstance(new_col_values, DataColumn):
-            if len(self._data[col_idx]) != len(new_col_values):
+            if required_col_len != len(new_col_values):
                 raise ValueError("Columns have incompatible lengths")
             self._data[col_idx] = new_col_values
+        # List was provided
         elif isinstance(new_col_values, list):
-            if len(self._data[col_idx]) != len(new_col_values):
+            if required_col_len != len(new_col_values):
                 raise ValueError("Columns have incompatible lengths")
-            # Get the properties of the column being replaced and create new column with the same properties
             col_props = self._data[col_idx]._get_all_properties()
             self._data[col_idx] = DataColumn(new_col_values,col_properties=col_props)
+        # Scalar was provided
         elif isinstance(new_col_values,(int,str,float,bool,datetime,Category)):
-            # Get the properties of the column being replaced and create new column with the same properties
             col_props = self._data[col_idx]._get_all_properties()
             self._data[col_idx] = DataColumn([new_col_values]*required_col_len,col_properties=col_props)
+        # Unacceptable type was provided
         else:
             raise TypeError("New column values must be a list, DataColumn, Str, Int, Bool, or Datetime.")
         self._update_col_lengths(col=col_label)
