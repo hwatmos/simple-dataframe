@@ -127,7 +127,7 @@ def _cast_list(values, new_type):
 # Helper Objects
 # =========================================================================
 
-_MAX_COL_PRINT_LEN = 10
+_MAX_COL_PRINT_LEN = 16
 _MIN_COL_PRINT_LEN = 5
 
 ALLOWED_COL_PROPERTIES = [ # Attributes that describe an instance of the DataColumn class.  They can be set and read using DataColumn's methods
@@ -267,18 +267,24 @@ class _DataIndex:
         ['a', 'b']
     
     """
-    def __init__(self,assume_sorted:bool):
+    def __init__(self,assume_sorted:bool,index_desc:dict=None):
         """
         Initiates empty instance of index.
 
         If assume_sorted is True, indices will be stored as slicers.
         Otherwise, indices will be stored as lists of row numbers.
 
+        If index_desc is passed, reconstruct index using it.
+
         """
         if not isinstance(assume_sorted,bool):
             raise ValueError("assume_sorted must be provided as a bool")
         self.assume_sorted = assume_sorted
         self.data = defaultdict(lambda: None)
+        # Reconstruct index if index_desc was given
+        if isinstance(index_desc, dict):
+            for keys, slicer in index_desc.items():
+                self[keys] = slicer
         return
 
     def __setitem__(self, keys, dest_row_idx):
@@ -346,7 +352,10 @@ class _DataIndex:
             # Reached the inner-most dict, decide whether to use list or custom slicer
             # and **APPEND** the value accordingly.  Warning: this is not true assignment,
             # this is appending operation!
-            if not self.assume_sorted:
+            ## Check if dest_row_idx is a slice or a list - that indicates that the index is being recreated from an existing index
+            if isinstance(dest_row_idx,(list,slice)):
+                self.data[keys[0]] = dest_row_idx
+            elif not self.assume_sorted:
                 # Collect list of indices
                 if isinstance(self.data[keys[0]] ,list):
                     self.data[keys[0]].append(dest_row_idx)
@@ -371,7 +380,7 @@ class _DataIndex:
         """Lists possible labels at the current level"""
         return list(self.data.keys())
 
-    def list_levels(self, _trail=[]):
+    def list_levels(self, _trail=[], include_slicers=False):
         """Generate list of allkey combinations.
         
         All, i.e. all levels', keys are returned as a nested list.
@@ -400,11 +409,24 @@ class _DataIndex:
         resulting_levels=[]
         if isinstance(self.data[list(self.data.keys())[0]],_DataIndex):
             for key, nested_dict in self.data.items():
-                this_result = nested_dict.list_levels(_trail=_trail + [key])
+                this_result = nested_dict.list_levels(_trail=_trail + [key], include_slicers=include_slicers)
                 resulting_levels.extend(this_result)
         else:
-            resulting_levels = [_trail + [key] for key in self.data.keys()]
+            if include_slicers:
+                resulting_levels = [_trail + [key, slicer] for key,slicer in self.data.items()]
+            else:
+                resulting_levels = [_trail + [key] for key in self.data.keys()]
         return resulting_levels
+    
+    def as_dict(self):
+        """Return description of the index sufficient to recreate it."""
+        index = self.list_levels(include_slicers=True)
+        index_dict = {}
+        for key_and_slicer in index:
+            keys = tuple(key_and_slicer[:-1])
+            slicer = key_and_slicer[-1]
+            index_dict[keys] = slicer
+        return index_dict
 
 # Experimental class Category, may or may not be used in the future
 class Category:
@@ -537,22 +559,23 @@ class DataColumn:
             setattr(self, property_name, None)
         # Set the passed properties
         if isinstance(col_properties,dict):
-            # Properties that require custom processing:
             # Set "straight-forward" properties
-            for col_property, property_value in col_properties.items():
-                if col_property in COMPLEX_COL_PROPERTIES:
+            for property_name, property_value in col_properties.items():
+                if property_name in COMPLEX_COL_PROPERTIES:
                     continue
                 setattr(self, property_name, property_value)
             # Custom processing for aggregation_func:
-            if 'aggregation_func' in col_properties.keys():
+            if 'aggregation_func' in col_properties:
                 # Accepts a method definition or a string.  If string, lookup corresponding definition
                 if isinstance(col_properties['aggregation_func'], str):
-                    setattr(self, 'aggregation_func', _agg_functions[attr_val])
+                    setattr(self, 'aggregation_func', _agg_functions[col_properties['aggregation_func']])
                 else:
                     setattr(self, 'aggregation_func', col_properties['aggregation_func'])
             # Custom processing for dtype:
-            if 'dtype' in col_properties.keys():
-                self.data = _cast_list(self.data, col_properties['dtype'])
+            if 'dtype' in col_properties:
+                if col_properties['dtype'] is not None:
+                    self.data = _cast_list(self.data, col_properties['dtype'])
+                    setattr(self,'dtype',col_properties['dtype'])
                 
         # Additional properties:
         ## Override col_print_length.  This is done here because __init__ may be called in result of 
@@ -843,13 +866,19 @@ class DataFrame:
         Parameters
         ----------
         data : dict {str : iterable}
-               Keys are used as names (short names) for the frame's
-               columns. Defaults to None.
-        dtypes : dict {str : type}
-                 Datatypes to use for each column. Defaults to None.
+            Keys are used as names (short names) for the frame's
+            columns. Defaults to None.
         col_properties : dict {str : dict}
-                         For each column, provided a dict of column
-                         properties. Defaults to None.
+            For each column, provided a dict of column
+            properties. Defaults to None.
+        row_index : dict | _DataIndex
+            Used to recreate the index from a dict, or to assign
+            an existing index. Warning: exercise caution when
+            passing an existing index as the passed _DataIndex
+            will not be re-created but referenced instead.
+        row_index_labels : list
+            List of labels, ordered, that were used to create 
+            the row_index.
         
         """
         col_properties_provided = isinstance(col_properties,dict)
@@ -880,7 +909,11 @@ class DataFrame:
                 self.columns[key] = col_idx
                 col_idx += 1
             if isinstance(row_index,_DataIndex):
+                # Use the provided index (assumes programmer knows what they are doing here as this creates reference to whatever index was passed...)
                 self.rows = row_index
+            elif isinstance(row_index,dict):
+                # Recreates the index based on the provided dict
+                self.rows = _DataIndex(assume_sorted=True,index_desc=row_index)
             if isinstance(row_index_labels,list):
                 self.row_index_labels = row_index_labels
         else:
@@ -1221,7 +1254,7 @@ class DataFrame:
             if col_idx > screen_cols_num:
                 break
             col_width = self._data[col_idx].col_print_length
-            row_1_string += f"{col_label:^{col_width}}" + ' | '
+            row_1_string += f"{col_label[:self._data[col_idx].col_print_length]:^{col_width}}" + ' | '
         print(row_1_string)
         ## Row 2 (dtypes)
         print(prefix_header2,end=' ')
@@ -1316,7 +1349,14 @@ class DataFrame:
             new_col_properties[col_name] = self._data[col_idx]._get_all_properties()
             if col_name in new_properties.keys():
                 new_col_properties[col_name][property_type] = new_properties[col_name] # bc returns new column
-        return DataFrame(new_data,col_properties=new_col_properties)
+        # get row index
+        if len(self.row_index_labels)>0:
+            row_index_labels = self.row_index_labels
+            row_index_dict = self.rows.as_dict()
+        else:
+            row_index_labels = None
+            row_index_dict = None
+        return DataFrame(new_data,col_properties=new_col_properties,row_index=row_index_dict,row_index_labels=row_index_labels)
 
     def set_short_col_names(self,new_names,promote_current_to_long_names=False): # will need to delete _update_col_lengths and make sure this creates a new instance of column?
         """
@@ -1336,26 +1376,36 @@ class DataFrame:
                                         to new long names. Default: False.
 
         """
+        # Make sure dict was passed
+        if not isinstance(new_names,dict):
+            raise TypeError("new_names must be a dict")
         # Make sure none of the new names is not already taken
         for new_label in new_names.values():
             if new_label in self.columns.keys():
                 raise ValueError(f"Column {new_label} already exists")
-        new_long_names = {}
-        if not isinstance(new_names,dict):
-            raise TypeError("new_names must be a dict")
+        # Build a dicts for data and column properties. Iterate to keep current col order while updating the names
+        new_data = {}
+        new_col_props = {}
+        new_row_index_labels = None
+        new_row_index = None
+        for cur_label, col_idx in self.columns.items():
+            if cur_label in new_names:
+                new_label = new_names[cur_label]
+                new_data[new_label] = self._data[col_idx].data
+                new_col_props[new_label] = self._data[col_idx]._get_all_properties()
+                new_col_props[new_label]['short_name'] = new_label
+                new_col_props[new_label]['long_name'] = cur_label if promote_current_to_long_names else None
+            else:
+                new_data[cur_label] = self._data[col_idx].data
+                new_col_props[cur_label] = self._data[col_idx]._get_all_properties()
+        # get row index
+        if len(self.row_index_labels)>0:
+            new_row_index_labels = self.row_index_labels
+            row_index_dict = self.rows.as_dict()
         else:
-            for cur_label, new_label in new_names.items():
-                if promote_current_to_long_names:
-                    new_long_names[new_label] = cur_label
-                self.columns[new_label] = self.columns[cur_label]
-                del self.columns[cur_label]
-            if promote_current_to_long_names:
-                self.set_property('long_name',new_long_names)
-            # Sort columns dict according to column numbers, because the renaming operation above
-            # has moved the renamed columns to the end of the dict
-            self.columns = dict(sorted(self.columns.items(), key=lambda item: item[1]))
-            #self._update_col_lengths()
-        return
+            row_index_labels = None
+            row_index_dict = None
+        return DataFrame(new_data, col_properties=new_col_props, row_index=row_index_dict, row_index_labels=new_row_index_labels)
 
     def get_col_names(self):
         """Get dict of column names  (short : long)"""
@@ -1425,6 +1475,7 @@ class DataFrame:
                 new_data[value_col_label] = col_data
                 new_col_properties[value_col_label] = col_props
                 col_idx +=1
+            # Potential efficiency increase -- should df __init__ take _DataIndex as argument in addition to a dict?
             resulting_data_frame = DataFrame(new_data,col_properties=new_col_properties,row_index=rows,row_index_labels=key_col_labels)
             return resulting_data_frame
         else:
@@ -1442,44 +1493,75 @@ class DataFrame:
         Parameters
         ----------
         ignore_na : bool
-                    If set to True, will ignore any None values.
-                    If an aggregation group contains only None values
-                    for a column, that column's new value is set to None.
-                    Defaults to False.
+            If set to True, will ignore any None values.
+            If an aggregation group contains only None values
+            for a column, that column's new value is set to None.
+            Defaults to False.
         """
         # Check for nulls
         if not ignore_na:
             for col_name, col_idx in self.columns.items():
                 if self._data[col_idx].any_na():
                     raise ValueError(f"Missing value in column {col_name}")
-        new_data = [[] for col in self.columns.items()]
-        row_idx = 0
-        # Iterate over all unique key combinations
-        for key_values in self.rows.list_levels():
-            # Aggregate values within this key combination, one column at a time
-            for col_name, col_idx in self.columns.items():
-                # Columns marked as keys are not aggregated -- they are the keys
+        new_data_dict = {}
+        new_rows_index = _DataIndex(assume_sorted=True,index_desc=self.rows.as_dict())
+        new_rows_index_labels = list(self.row_index_labels)
+        new_col_props ={}
+        for col_label, col_idx in self.columns.items():
+            new_data_dict[col_label] = []
+            new_col_props[col_label] = self._data[col_idx]._get_all_properties()
+        # Begin aggregation process
+        for row_idx, augmented_keys in enumerate(self.rows.list_levels(include_slicers=True)):
+            slicer = augmented_keys[-1]
+            keys = augmented_keys[:-1]
+            # Aggregate within this key combination/key group
+            for col_label, col_idx in self.columns.items():
+                # Handle key columns
                 if self._data[col_idx].key:
-                    current_value = self._data[col_idx][self.rows[key_values]][0]
-                    new_data[col_idx].append(current_value)
+                    new_value = self._data[col_idx][slicer][0]
+                    new_data_dict[col_label].append(new_value)
+                # Handle non-key i.e. measure/aggregate columns
                 else:
-                    # Apply this column's aggregation function
-                    current_values = self._data[col_idx][self.rows[key_values]]
+                    values = self._data[col_idx][slicer]
                     if ignore_na:
-                        current_values = [value for value in current_values if value is not None]
-                    if not current_values:
+                        values = [x for x in values if x is not None]
+                    if not values:
                         new_value = None
                     else:
-                        new_value = self._data[col_idx].aggregation_func(current_values)
-                    new_data[col_idx].append(new_value)
-            self.rows[key_values] = row_idx
-            row_idx += 1
-        # Recreate dataframe one column at a time
-        for col_label, col_idx in self.columns.items():
-            new_col_data = new_data[col_idx]
-            new_col_props = self._data[col_idx]._get_all_properties()
-            self._data[col_idx] = DataColumn(new_col_data,col_properties=new_col_props)
-        return
+                        agg_func = self._data[col_idx].aggregation_func
+                        new_value = agg_func(values)
+                    new_data_dict[col_label].append(new_value)
+            new_rows_index[keys] = row_idx
+        return DataFrame(new_data_dict, new_col_props, new_rows_index, new_rows_index_labels)
+
+       #new_data = [[] for col in self.columns.items()]
+       #row_idx = 0
+       ## Iterate over all unique key combinations
+       #for key_values in self.rows.list_levels():
+       #    # Aggregate values within this key combination, one column at a time
+       #    for col_name, col_idx in self.columns.items():
+       #        # Columns marked as keys are not aggregated -- they are the keys
+       #        if self._data[col_idx].key:
+       #            current_value = self._data[col_idx][self.rows[key_values]][0]
+       #            new_data[col_idx].append(current_value)
+       #        else:
+       #            # Apply this column's aggregation function
+       #            current_values = self._data[col_idx][self.rows[key_values]]
+       #            if ignore_na:
+       #                current_values = [value for value in current_values if value is not None]
+       #            if not current_values:
+       #                new_value = None
+       #            else:
+       #                new_value = self._data[col_idx].aggregation_func(current_values)
+       #            new_data[col_idx].append(new_value)
+       #    self.rows[key_values] = row_idx
+       #    row_idx += 1
+       ## Recreate dataframe one column at a time
+       #for col_label, col_idx in self.columns.items():
+       #    new_col_data = new_data[col_idx]
+       #    new_col_props = self._data[col_idx]._get_all_properties()
+       #    self._data[col_idx] = DataColumn(new_col_data,col_properties=new_col_props)
+       #return
 
     def values(self, transpose=False, skip_col_labels=[], return_labels=False):
         """
@@ -1540,25 +1622,26 @@ class DataFrame:
         # Get indices
         l_index = self.rows
         r_index = other.rows
-        joined_index = _DataIndex(assume_sorted=True)
         # Helper:
-        n_left_cols = len(l_col_labels)
-        # Iterate overal all index keys and construct new data
+        n_left_cols = len(l_col_labels) # remember # of rows in left df to start right cols' indices correctly
+        # Iterate over all index keys and construct new data
+        ## This is done row at a time since data was tranposed
         for keys in l_index.list_levels():
             l_slicer = l_index[*keys]
             l_data = l_full_data[l_slicer]
-            l_len = len(l_data)
+            #l_len = len(l_data)
             r_slicer = r_index[*keys]
             if r_slicer == None:
                 # Create dummy r_data while keeping correct number of columns
                 r_data = [[None] for _ in r_col_labels]
-                r_len = 1
+                #r_len = 1
             else:
                 r_data = r_full_data[r_slicer]
-                r_len = len(r_data)
+                #r_len = len(r_data)
+            # cross product of left and right rows (it.product()). However, for each combination,
+            # product() returns a two-tuple of the lists, so I use it.chain to flatten them
             joined_data = [list(it.chain(x[0],x[1])) for x in list(it.product(l_data,r_data))]
             new_data.extend(joined_data)
-        # Update l_slicer if records had to be repeated
         # Final preparation to construct the resulting DataFrame
         ## Transpose new_data to cols x rows
         new_data = list(zip(*new_data))
@@ -1571,5 +1654,8 @@ class DataFrame:
         for i, col_label in enumerate(r_col_labels):
             new_data_dict[col_label] = new_data[i+n_left_cols]
             new_data_props[col_label] = other[col_label]._get_all_properties()
-        return DataFrame(new_data_dict, col_properties=new_data_props)
+        resulting_df = DataFrame(new_data_dict, col_properties=new_data_props).set_row_index(
+            key_col_labels=self.row_index_labels
+        )
+        return resulting_df
 
