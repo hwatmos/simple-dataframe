@@ -6,8 +6,11 @@ import statistics
 from collections import defaultdict
 import sys
 from io import StringIO
+from numbers import Number
 
-ALLOWED_COL_PROPERTIES = ['dtype','long_name','col_print_length','key','aggregation_func']
+# =========================================================================
+# Helper Functions
+# =========================================================================
 
 def nunique(values: list):
     """Count of unique values"""
@@ -17,9 +20,7 @@ def count(values: list):
     """Count non-missing values"""
     return len(x for x in values if x is not None)
 
-agg_functions ={'nunique':nunique,'mean':statistics.mean,'sum':sum,'median':statistics.median,'min':min,'max':max,'std':statistics.stdev,'var':statistics.variance,'count':count,'len':len}
-
-def pretty_string(string,color,length=None):
+def _pretty_string(string,color,length=None):
     """Trim to length and change color of provided string.
 
     Given string is first trimmed to requested length, then color
@@ -48,24 +49,16 @@ def pretty_string(string,color,length=None):
     Given string 'lengthy_column_name' apply blue font and return
     string that is only 4 characters long i.e. "leng"
     
-    >>> pretty_string('lengthy_column_name','blue',4)
+    >>> _pretty_string('lengthy_column_name','blue',4)
 
     """
-    colors_dict = {
-        'red':31,
-        'green':32,
-        'yellow':33,
-        'blue':34,
-        'magenta':35,
-        'cyan':36,
-    }
     # This assures that only the visible characters are trimmed and not the whole string including formatting
     if length==None:
-        return f"\033[{colors_dict[color]}m{string}\033[0m"
+        return f"\033[{_colors_dict[color]}m{string}\033[0m"
     else:
-        return f"\033[{colors_dict[color]}m{string[:length]}\033[0m"
+        return f"\033[{_colors_dict[color]}m{string[:length]}\033[0m"
     
-def is_iterable(obj):
+def _is_iterable(obj):
     """Check whether obj is iterable."""
     try:
         iter(obj)
@@ -73,18 +66,18 @@ def is_iterable(obj):
     except TypeError:
         return False
 
-def element_wise_comparison(func, list_1, list_2):
+def _element_wise_comparison(func, list_1, list_2):
     """Compare list_1 and list_2 using func and return a list of Bool
 
-    Takes Python lists or tuples and outputs Python lists. list_2 may be a scalar.
+    Takes Python lists, tuples, or DataColumns and outputs Python lists. list_2 may be a scalar.
 
     """
-    if not is_iterable(list_1):
+    if not _is_iterable(list_1):
         raise TypeError("list_1 must be of the type 'List'")
     if isinstance(list_2, (int, float, str, datetime.datetime)) :
         # Compare list list_1 to a value list_2
         return [func(x,list_2) for x in list_1]
-    elif is_iterable(list_2):
+    elif _is_iterable(list_2):
         # Compare list to a list if their lengths are compatible
         if len(list_1) != len(list_2):
             raise ValueError("Lists have incompatible lengths")
@@ -92,17 +85,328 @@ def element_wise_comparison(func, list_1, list_2):
     else:
         raise TypeError("Can only compare against the types 'Int,' 'Float,' 'Str,' or 'List'")
 
-def aggregate_ignore_none(iterable, aggregation_func):
-    """
-    Aggregate function that ignores None values.
-    
-    If all values are None, returns None.
-    """
-    filtered_values = [value for value in iterable if value is not None]
-    if not filtered_values:
-        return None
-    return aggregation_func(filtered_values)
+def _calc_col_print_length(col_data,col_label):
+    """Calculate how many characters are required to print column horizontally, based on its data"""
+    if isinstance(col_label,str):
+        new_len = max(len(col_label)+1, max([len(str(x))+1 for x in col_data]))
+    else:
+        new_len = max([len(str(x))+1 for x in col_data])
+    new_len = min(new_len, _MAX_COL_PRINT_LEN)
+    new_len = max(new_len,_MIN_COL_PRINT_LEN)
+    return new_len
 
+def _cast_list(values, new_type):
+    """Cast all values in a list to new_type. Return None for None."""
+    casted_values = []
+    for val in values:
+        try:
+            if val==None:
+                casted_val=None
+            elif isinstance(val, str) and issubclass(new_type, Number):
+                casted_val = new_type(val.replace(",",""))
+            else:
+                casted_val = new_type(val)
+            casted_values.append(casted_val)
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"Cannon cast {val} to {new_type}: {e}")
+    return casted_values
+
+# Unused currently, saved for future use
+#def _aggregate_ignore_none(iterable, aggregation_func):
+#    """
+#    Aggregate function that ignores None values.
+#    
+#    If all values are None, returns None.
+#    """
+#    filtered_values = [value for value in iterable if value is not None]
+#    if not filtered_values:
+#        return None
+#    return aggregation_func(filtered_values)
+
+# =========================================================================
+# Helper Objects
+# =========================================================================
+
+_MAX_COL_PRINT_LEN = 10
+_MIN_COL_PRINT_LEN = 5
+
+ALLOWED_COL_PROPERTIES = [ # Attributes that describe an instance of the DataColumn class.  They can be set and read using DataColumn's methods
+    'dtype', # datatype of the values stored in the column
+    'short_name', # short name for the column.
+    'long_name', # long name of the column. This is generally not used by the DataFrame for printing, instead DataFrame uses short names which are ALSO stored in the DataFrame itself.
+    'col_print_length', # how many characters are required to display this column.
+    'key', # whether this column should be considered as the "key."  Key columns are used by the DataFrame class to index data, i.e. a DataFrame's index is built from key columns.  Indices are used to aggregate data (i.e. they are the dimension by which the data is aggregated).  They are also used to join two DataFrame objects together (their indices must be created in the same manner i.e. using the same key columns in the same order via DataFrame method set_row_index())
+    'aggregation_func', # function definition to use for aggregating this column's data.  Required for all non-key columns.
+    'length', # how many values are in the column
+]
+
+COMPLEX_COL_PROPERTIES = [ # List of those column properties which require their individual custom processing logic
+    'dtype',
+    'col_print_length', # must be calculated by DataColumn initiator
+    'aggregation_func', # must be checked whether a str or a def was used to set the property
+    'length', # must be calculated by DataColumn initiator itself
+]
+
+# _agg_functions dict is used by DataColumn when aggregation_func attribute is being set using a string.  In that case, _agg_functions is used to get definition of the appropriate function.
+_agg_functions ={
+    'nunique':nunique,
+    'mean':statistics.mean,
+    'sum':sum,
+    'median':statistics.median,
+    'min':min,
+    'max':max,
+    'std':statistics.stdev,
+    'var':statistics.variance,
+    'count':count,
+    'len':len
+}
+
+_colors_dict = {
+    'red':31,
+    'green':32,
+    'yellow':33,
+    'blue':34,
+    'magenta':35,
+    'cyan':36,
+}
+
+# =========================================================================
+# Helper Classes
+# =========================================================================
+
+# Experimental _IndexSlice class planned for future use with _DataIndex to implement
+# a custom, mutable, slicer with in-place addition operator.
+# (Needed so that _DataIndex assignment operation is a true assignment instead
+# of the current append operation.)
+#class _IndexSlice:
+#    """
+#    Mutable slicer.
+#
+#    Returns slicer when called.
+#    """
+#    def __init__(self, start, stop):
+#        self.start = start
+#        self.stop = stop
+#        return
+#    def __add__(self, other):
+#        if not isinstance(other, int):
+#            raise TypeError("Unsupported type for addition")
+#        self.stop += other
+#        return self
+#
+#    # Experimental shorthands for modifying the self.stop, saved for potential future use
+#    #def __lshift__(self, other):
+#    #    if not isinstance(other, int):
+#    #        raise TypeError("Unsupported type for addition")
+#    #    self.stop = other
+#    #    return
+#
+#    def __setitem__(self, slicer_attribute, new_value):
+#        if slicer_attribute == 'stop':
+#            self.stop = new_value
+#        elif slicer_attribute == 'start':
+#            self.start = new_value
+#        else:
+#            raise ValueError(f"Trying to set attrubute {slicer_attribute} which does not exist")
+#
+#    def __call__(self):
+#        return slice(self.start, self.stop)
+
+class _DataIndex:
+    """
+    Class that builds the index used for addressing rows of DataColumns stored in DataFrame
+
+    Warning!
+    --------
+    _DataIndex implements an unusual assignment operator
+    via __setitem__ which adds on the passed value dest_row_idx
+    to the existing slicer or list. This behavior may be updated
+    in the future.
+    --------
+
+    Uses the defaultdict class from Python standard library "collections" which acts
+    like a regular Python dict but returns default value instead of raising errors
+    when a requested key does not exist.
+    The __init__ method initiates and instance of an empty index. Assignment operation
+    must be performed for each combination of keys in order to build the index. See example
+    below.
+
+    Note
+    ----
+    The initiator takes a required parameter assume_sorted.  If True, the index is created
+    using slices, otherwise using lists of row indices.  It is recommended that the data
+    is sorted so that assume_sorted can be used for efficiency gain.
+    Note that the set_row_index function sorts the data before creating index.
+
+    Methods
+    -------
+    labels() : returns a list of labels used at the selected index level. For example,
+               df.rows.labels() will display possible values at the first level of the index
+               while df.rows['A'].labels() will display possible values at the second
+               level but only values that are available under 'A.'
+    list_levels() : returns a nested list representing all existing index key combinations.
+
+    Examples
+    --------
+    Create new DataFrame and set index using two columns, col_a and col_b
+        >>> data = {
+        >>>     'col_a': ['A','A','B','C'],
+        >>>     'col_b': ['a','b','a','a'],
+        >>>     'col_val': [45,46,22,91]
+        >>> }
+        >>> df = DataFrame(data).set_row_index(['col_a','col_b'])
+    This created the "rows" attribute which is the DataFrame df', row index.
+    View all possible key combinations in this index:
+        >>> df.rows.list_levels()
+        [['A', 'a'], ['A', 'b'], ['B', 'a'], ['C', 'a']]
+    Identify rows of data where col_a=='A' and col_b=='b':
+        >>> df.rows['A','b']
+        slice(1, 2, None)
+    Get list of vales available at the second level under first level value 'A':
+        >>> df.rows['A'].labels()
+        ['a', 'b']
+    
+    """
+    def __init__(self,assume_sorted:bool):
+        """
+        Initiates empty instance of index.
+
+        If assume_sorted is True, indices will be stored as slicers.
+        Otherwise, indices will be stored as lists of row numbers.
+
+        """
+        if not isinstance(assume_sorted,bool):
+            raise ValueError("assume_sorted must be provided as a bool")
+        self.assume_sorted = assume_sorted
+        self.data = defaultdict(lambda: None)
+        return
+
+    def __setitem__(self, keys, dest_row_idx):
+        """
+        Builds the nested index for identifying rows in the data.
+
+        Warning!
+        --------
+        _DataIndex implements an unusual assignment operator
+        via __setitem__ which adds on the passed value dest_row_idx
+        to the existing slicer or list.  This behavior may be updated
+        in the future.
+        --------
+
+        The keys list contains the consecutive index levels' values
+        that point to the data row indicated by dest_row_idx.
+        Specifically:
+        Each next key in keys will produce another nested dict key.
+        The last key will produce the inner-most dict where values
+        are either slicers or lists of indices (depending
+        on the assume_sorted attribute of this index) constructed
+        from the value of the dest_row_idx parmeter.
+
+        Parameters
+        ----------
+        keys : list
+               List of values where each value corresponds 
+               to the next consecutive index level. For example
+               ['col_1_value','col_2_value'].
+        dest_row_idx : int
+                       Integer indicating row number of data
+                       belonging to this combination of index
+                       keys.
+
+        Examples
+        --------
+        Create df:
+            >>> data = {
+            >>>     'col_a': ['A','A','A','B','C'],
+            >>>     'col_b': ['a','a','b','a','a'],
+            >>>     'col_val': [45,22,46,22,91]
+            >>> }
+            >>> df = DataFrame(data)
+        Create index:
+            >>> df.rows = _DataIndex(assume_sorted=True)
+        Add key ['A','a'] to the index and assign the two rows
+        that have these values in columns col_a and col_b:
+            >>> df.rows['A','a'] += 0
+            >>> df.rows['A','a'] += 1
+        Inspect the index at ['A','a']:
+            >>> df.rows['A','a']
+            slice(0, 2, None)
+
+        """
+        # keys is a list of values where each value corresponds to the next consecutive index level
+        # for example, if keys == ['A','a',3], it is assumed that _DataIndex has three-level nested
+        # dicts.  This function works recursively, at each recursion taking the first value and using
+        # it as the key and pussing the remaining elements to the nested dict.
+        if len(keys)>1:
+            # Haven't reached the last key/ inner-most dict, thus call recursively the next level 
+            if not keys[0] in self.data:
+                self.data[keys[0]] = _DataIndex(self.assume_sorted)
+            self.data[keys[0]][keys[1:]] = dest_row_idx
+        else:
+            # Reached the inner-most dict, decide whether to use list or custom slicer
+            # and **APPEND** the value accordingly.  Warning: this is not true assignment,
+            # this is appending operation!
+            if not self.assume_sorted:
+                # Collect list of indices
+                if isinstance(self.data[keys[0]] ,list):
+                    self.data[keys[0]].append(dest_row_idx)
+                else:
+                    self.data[keys[0]] = [dest_row_idx]
+            else:
+                # Build slicer objects
+                if isinstance(self.data[keys[0]] ,slice):
+                    self.data[keys[0]] = slice(self.data[keys[0]].start,dest_row_idx+1) # Replaces existing slice with new one by keeping the same start but modifying the end. This works because data is sorted
+                else:
+                    self.data[keys[0]] = slice(dest_row_idx,dest_row_idx+1)
+        return
+
+    def __getitem__(self, keys):
+        """Retrieves the slicer or list of indices using keys"""
+        if len(keys)>1:
+            return self.data[keys[0]][keys[1:]]
+        else:
+            return self.data[keys[0]]
+
+    def labels(self):
+        """Lists possible labels at the current level"""
+        return list(self.data.keys())
+
+    def list_levels(self, _trail=[]):
+        """Generate list of allkey combinations.
+        
+        All, i.e. all levels', keys are returned as a nested list.
+        Each inner list contains the keys for each key column.
+
+        Parameters
+        ----------
+        _trail : list
+                 Used internally for recursion.
+
+        Examples
+        --------
+        Create new DataFrame and set index using two columns, col_a and col_b
+            >>> data = {
+            >>>     'col_a': ['A','A','B','C'],
+            >>>     'col_b': ['a','b','a','a'],
+            >>>     'col_val': [45,46,22,91]
+            >>> }
+            >>> df = DataFrame(data).set_row_index(['col_a','col_b'])
+        This created the "rows" attribute which is the DataFrame df', row index.
+        View all possible key combinations in this index:
+            >>> df.rows.list_levels()
+            [['A', 'a'], ['A', 'b'], ['B', 'a'], ['C', 'a']]
+
+        """
+        resulting_levels=[]
+        if isinstance(self.data[list(self.data.keys())[0]],_DataIndex):
+            for key, nested_dict in self.data.items():
+                this_result = nested_dict.list_levels(_trail=_trail + [key])
+                resulting_levels.extend(this_result)
+        else:
+            resulting_levels = [_trail + [key] for key in self.data.keys()]
+        return resulting_levels
+
+# Experimental class Category, may or may not be used in the future
 class Category:
     """Data format for categorical data
 
@@ -118,6 +422,10 @@ class Category:
         
     def __format__(self,fmt):
         return f"{self.data:{fmt}}"
+
+# =========================================================================
+# Main Functionality
+# =========================================================================
 
 class DataColumn:
     """Represents a column of a DataFrame.
@@ -192,46 +500,75 @@ class DataColumn:
 
     """
     def __init__(self, data, col_properties:dict=None):
-        """Initiate new column
+        """
+        Initiates new column.
         
-        New column containing the provided data and properties,
+        New DataColumn containing the provided data and properties,
         if provided. If no col_properties is passed, initiates 
         all column properties with the value of None.
+        
 
         Parameters
         ----------
         data : list
                List of the column's values.
         col_properties : dict
-                         Property: value pairs. 
+               Property: value pairs. Currently utilized properties
+               are listed in ALLOWED_COL_PROPERTIES.
         
         """
-        self.data = data
+        # Check that col_properties has been correctly specified:
+        if not isinstance(col_properties, (dict,type(None))):
+            raise TypeError("col_properties must be a dict or None")
+        elif isinstance(col_properties,dict):
+            for property_name in col_properties.keys():
+                if property_name not in ALLOWED_COL_PROPERTIES:
+                    raise ValueError(f"Requested to set property {property_name} which is not an allowed DataColumn property.")
+        # Check that data has been correctly speficied:
+        if not isinstance(data, (list, tuple, DataColumn)):
+            raise TypeError("Data must be either a list or a DataColumn")
+        # Proceed to defining DataColumn
+        if isinstance(data, (list, tuple)):
+            self.data = list(data)
+        elif isinstance(data, DataColumn):
+            self.data = data.data
         # Initiate empty properites
-        for prop in ALLOWED_COL_PROPERTIES:
-            self._set_properties({prop:None})
+        for property_name in ALLOWED_COL_PROPERTIES:
+            setattr(self, property_name, None)
         # Set the passed properties
-        if col_properties != None:
-            self._set_properties(col_properties)
+        if isinstance(col_properties,dict):
+            # Properties that require custom processing:
+            # Set "straight-forward" properties
+            for col_property, property_value in col_properties.items():
+                if col_property in COMPLEX_COL_PROPERTIES:
+                    continue
+                setattr(self, property_name, property_value)
+            # Custom processing for aggregation_func:
+            if 'aggregation_func' in col_properties.keys():
+                # Accepts a method definition or a string.  If string, lookup corresponding definition
+                if isinstance(col_properties['aggregation_func'], str):
+                    setattr(self, 'aggregation_func', _agg_functions[attr_val])
+                else:
+                    setattr(self, 'aggregation_func', col_properties['aggregation_func'])
+            # Custom processing for dtype:
+            if 'dtype' in col_properties.keys():
+                self.data = _cast_list(self.data, col_properties['dtype'])
+                
+        # Additional properties:
+        ## Override col_print_length.  This is done here because __init__ may be called in result of 
+        ## manipulation of existing DataColumn, e.g. due to adding two columns.  In that case,
+        ## whatever col_print_length was provided is not applicable any more.
+        setattr(self, 'col_print_length', _calc_col_print_length(self.data,self.short_name))
+        ## length
+        setattr(self, 'length', len(self.data))
         return
             
-    def _set_properties(self, property_dict):
-        """Set column property"""
-        if isinstance(property_dict, dict):
-            for attr_name, attr_val in property_dict.items():
-                if attr_name == 'aggregation_func':
-                    if isinstance(attr_val,str):
-                        setattr(self, attr_name, agg_functions[attr_val])
-                    else:
-                        setattr(self,attr_name,attr_val)
-                else:
-                    setattr(self, attr_name, attr_val)
-        else:
-            raise TypeError("property_dict parameter must be of the type 'Dict'")
-        return
+    def set_properties(self, col_properties):
+        """Returns new column with specified properties"""
+        return DataColumn(self.data, col_properties)
 
     def _get_property(self, property_name):
-        """Extract a property value"""
+        """Extracts a property value"""
         try:
             return getattr(self,property_name,None)
         except:
@@ -239,9 +576,9 @@ class DataColumn:
 
     def _get_all_properties(self):
         """
-        Extract all properties
+        Extracts all properties
         
-        Form a dicct of dicts that can be used to recreate this column i.e. in DataColumn
+        Forms a dict of dicts that can be used to recreate this column i.e. in DataColumn
         class initialization.
         
         """
@@ -254,35 +591,44 @@ class DataColumn:
         return self.data[key]
 
     def __len__(self):
-        return len(self.data)
+        return self.length
 
     def __add__(self, other):
         if isinstance(other, int) or isinstance(other, float):
-            return DataColumn([operator.add(x, other) for x in self.data])
-        elif is_iterable(other):
+            col_properties = self._get_all_properties()
+            col_properties['dtype'] = float if isinstance(other, float) else self._get_property('dtype')
+            return DataColumn([x + other for x in self.data], col_properties=col_properties)
+        elif _is_iterable(other):
             if len(self) != len(other):
                 raise ValueError("Columns have incompatible lengths")
-            return DataColumn([x + y for x, y in zip(iter(self),iter(other))])
+            col_properties = self._get_all_properties()
+            return DataColumn([x + y for x, y in zip(iter(self),iter(other))],col_properties=col_properties)
         else:
             raise TypeError("Operands must be iterable or 'Int,' or 'Float'")
 
     def __sub__(self, other):
         if isinstance(other, int) or isinstance(other, float):
-            return DataColumn([operator.sub(x, other) for x in self.data])
-        elif is_iterable(other):
+            col_properties = self._get_all_properties()
+            col_properties['dtype'] = float if isinstance(other, float) else self._get_property('dtype')
+            return DataColumn([x - other for x in self.data], col_properties=col_properties)
+        elif _is_iterable(other):
             if len(self) != len(other):
                 raise ValueError("Columns have incompatible lengths")
-            return DataColumn([x - y for x, y in zip(iter(self),iter(other))])
+            col_properties = self._get_all_properties()
+            return DataColumn([x - y for x, y in zip(iter(self),iter(other))],col_properties=col_properties)
         else:
             raise TypeError("Operands must be iterable or 'Int,' or 'Float'")
 
     def __mul__(self, other):
         if isinstance(other, int) or isinstance(other, float):
-            return DataColumn([operator.mul(x, other) for x in self.data])
-        elif is_iterable(other):
+            col_properties = self._get_all_properties()
+            col_properties['dtype'] = float if isinstance(other, float) else self._get_property('dtype')
+            return DataColumn([x * other for x in self.data], col_properties=col_properties)
+        elif _is_iterable(other):
             if len(self) != len(other):
                 raise ValueError("Columns have incompatible lengths")
-            return DataColumn([x * y for x, y in zip(iter(self),iter(other))])
+            col_properties = self._get_all_properties()
+            return DataColumn([x * y for x, y in zip(iter(self),iter(other))],col_properties=col_properties)
         else:
             raise TypeError("Operands must be iterable or 'Int,' or 'Float'")
 
@@ -290,37 +636,40 @@ class DataColumn:
         if isinstance(other, int) or isinstance(other, float):
             if other==0:
                 raise ValueError("Div by zero is not allowed")
-            return DataColumn([operator.truediv(x, other) for x in self.data])
-        elif is_iterable(other):
+            col_properties = self._get_all_properties()
+            col_properties['dtype'] = float if isinstance(other, float) else self._get_property('dtype')
+            return DataColumn([x / other for x in self.data], col_properties=col_properties)
+        elif _is_iterable(other):
             if len(self) != len(other):
                 raise ValueError("Columns have incompatible lengths")
             if 0 in other:
                 raise ValueError("Encountered division by zero")
-            return DataColumn([x / y for x, y in zip(iter(self),iter(other))])
+            col_properties = self._get_all_properties()
+            return DataColumn([x / y for x, y in zip(iter(self),iter(other))],col_properties=col_properties)
         else:
             raise TypeError("Can only divide by the types 'Int,' or 'Float'")
 
     def __eq__(self, other):
-        return element_wise_comparison(operator.eq,self, other)
+        return _element_wise_comparison(operator.eq,self, other)
 
     def __lt__(self, other):
-        return element_wise_comparison(operator.lt,self, other)
+        return _element_wise_comparison(operator.lt,self, other)
 
     def __le__(self, other):
         
-        return element_wise_comparison(operator.le,self, other)
+        return _element_wise_comparison(operator.le,self, other)
 
     def __ne__(self, other):
         
-        return element_wise_comparison(operator.ne,self, other)
+        return _element_wise_comparison(operator.ne,self, other)
 
     def __ge__(self, other):
         
-        return element_wise_comparison(operator.ge,self, other)
+        return _element_wise_comparison(operator.ge,self, other)
 
     def __gt__(self, other):
         
-        return element_wise_comparison(operator.gt,self, other)
+        return _element_wise_comparison(operator.gt,self, other)
         
     def __repr__(self):
         # Redirect stdout to a StringIO object
@@ -336,14 +685,14 @@ class DataColumn:
 
     def as_list(self):
         """Return this column's values as a list"""
-        return self.data
+        return list(self.data)
 
     def __iter__(self):
         return iter(self.data)
 
     def apply(self, func):
         """Map func onto this column's values"""
-        return DataColumn(list(map(func,self.data)))
+        return DataColumn(list(map(func,self.data)), col_properties=self._get_all_properties())
 
     def sum(self):
         """Return the sum of this column's values"""
@@ -427,13 +776,16 @@ class DataColumn:
             try:
                 if val==None:
                     casted_val=None
+                elif isinstance(val, str) and issubclass(new_type, Number):
+                    casted_val = new_type(val.replace(",",""))
                 else:
                     casted_val = new_type(val)
                 casted_values.append(casted_val)
             except (TypeError, ValueError) as e:
                 raise ValueError(f"Cannon cast {val} to {new_type}: {e}")
-        col_props = self._get_all_properties()
-        return DataColumn(casted_values,col_properties=col_props)
+        col_properties = self._get_all_properties()
+        col_properties['dtype'] = new_type
+        return DataColumn(casted_values,col_properties=col_properties)
 
     def isna(self):
         """Return list of bools indicating missing values"""
@@ -446,10 +798,11 @@ class DataColumn:
     def fillna(self,fill_val):
         """Return DataColumn with fill_value in place of missing values"""
         new_values = list(map(lambda x: fill_val if x==None else x,self.data))
-        col_props = self._get_all_properties()
-        return DataColumn(new_values,col_properties=col_props)
+        col_properties = self._get_all_properties()
+        return DataColumn(new_values,col_properties=col_properties)
 
     def unique(self):
+        """Return list of all distinct values."""
         return(list(set(self.data)))
         
 class DataFrame:
@@ -458,6 +811,17 @@ class DataFrame:
 
     Consists of columns represented by DataColumn class.
 
+    Attributes
+    ----------
+    rows : _DataIndex
+           DataIndex object used for indexing this frame's data.
+    row_index_labels : list of str
+                       Ordered list of labels of columns which were
+                       used to build the rows index.
+    _data
+    columns : dict
+              Label - index pairs for columns in this data frame.
+
     Functions
     ---------
     read_csv
@@ -465,7 +829,7 @@ class DataFrame:
     apply
 
     '''
-    def __init__(self,data=None,dtypes=None,col_properties=None,row_index=None,row_index_labels=None):
+    def __init__(self,data=None,col_properties=None,row_index=None,row_index_labels=None):
         """
         Initiate new DataFrame, either empty or from values
         
@@ -488,23 +852,16 @@ class DataFrame:
                          properties. Defaults to None.
         
         """
-        dtypes_provided = isinstance(dtypes,dict)
-        col_props_provided = isinstance(col_properties,dict)
-        # Make sure that only one of dtypes and col_propperties was provided
-        # since col_properties can include dtypes.
-        if dtypes_provided and col_props_provided:
-            raise TypeError("Can only specify one of the parameters dtypes and col_properties")
+        col_properties_provided = isinstance(col_properties,dict)
         values_len = -1
-        # Set default values for internal parameters
-        #self._default_col_print_length = 10
-        self._max_col_print_length = 10
-        self._min_col_print_length = 5
-        self.rows = NestedDict(assume_sorted=True)
+        # Initiate values for DataFrame attributes
+        self.rows = _DataIndex(assume_sorted=True)
         self._data = []
         self.columns = {} # keys are short names; col_properties includes long_name
         self.row_index_labels = []
         if data==None:
             pass
+        # If data was passed, build columns and append to _data
         elif isinstance(data,dict):
             col_idx = 0 # iterate column index
             for key, values in data.items():
@@ -514,47 +871,27 @@ class DataFrame:
                 else:
                     if len(values) != values_len:
                         raise ValueError("Columns have incompatible lengths")
-                # Check if dtypes were given and store data values
-                if dtypes_provided:
-                    self._data.append(DataColumn([dtypes[key](val) for val in values]))
-                    self._data[col_idx]._set_properties({'dtype':dtypes[key]})
-                elif col_props_provided:
-                    self._data.append(DataColumn(values))
-                    self._data[col_idx]._set_properties(col_properties[key])
+                # Check if column properties were given and store data values
+                if col_properties_provided:
+                    self._data.append(DataColumn(values,col_properties[key]))
                 else:
                     self._data.append(DataColumn(values))
                 # Add column to columns dict
                 self.columns[key] = col_idx
                 col_idx += 1
-            self._update_col_lengths()
-            self.rows = row_index
-            self.row_index_labels = row_index_labels
+            if isinstance(row_index,_DataIndex):
+                self.rows = row_index
+            if isinstance(row_index_labels,list):
+                self.row_index_labels = row_index_labels
         else:
             raise TypeError("Data must be of the type'Dict'")
         return
-
-    def _update_col_lengths(self,col=None):
-        """Update the printing width of the column"""
-        # Calculate all columns' (or defined col) print lengths
-        if col==None:
-            for col_label, col_idx in self.columns.items():
-                new_length = min(self._max_col_print_length,max([len(str(x))+1 for x in self._data[col_idx]]))
-                new_length = max(new_length,len(col_label)+1)
-                new_length = max(new_length,self._min_col_print_length)
-                self.set_property('col_print_length',{col_label:new_length})
-            return
-        else:
-            col_label = col
-            col_idx = self.columns[col_label]
-            new_length = min(self._max_col_print_length,max([len(str(x))+1 for x in self._data[col_idx]]))
-            new_length = max(new_length,len(col_label)+1)
-            new_length = max(new_length,self._min_col_print_length)
-            self.set_property('col_print_length',{col_label:new_length})
-            return
             
-    def read_csv(self, file_path):
+    def read_csv(self, file_path): ###### NEEDS TO BE UPDATED.  If data already exists, should keep column properties but update data
         """
         Read data from a csv file.
+
+        THIS METHOD IS INCOMPLETE (It works for empty frame only but must be allowed to work with populated frames)
         
         Populates this frame, if empty, with data read from the csv file file_path.
         Column headers from the file will be stored as the short column names. If you
@@ -585,7 +922,6 @@ class DataFrame:
         for col_idx, col_data in enumerate(self._data):
             self._data[col_idx] = DataColumn(col_data)
         del data;
-        self._update_col_lengths()
         return
 
     def to_csv(self, file_path):
@@ -604,6 +940,11 @@ class DataFrame:
         """
         Select elements from the DataFrame
 
+        Returns
+        -------
+        DataFrame, if multiple columns are selected.
+        DataColumn, if ony column is selected
+
         Examples
         --------
         Assume the following DataFrame df:
@@ -618,21 +959,29 @@ class DataFrame:
         ...
         
         Column selectors:
-        df['col_a'] - column col_a
+        Select column col_a:
+            >>> df['col_a']
         To select multiple columns, use a list.  Do not use a tuple.
-        df[['col_a','col_val']] - columns col_a, col_val
+            >>> df[['col_a','col_val']]
 
         Column and row selectors:
-        df[:10, ['col_a','col_b']] - first 10 rows, columns col_a, col_b
-        df[[1,4], ['col_a','col_b']] - rows 1 and 4, columns col_a, 
-        df[[True,False,False,True], ] - rows 0 and 3, all columns
-        df[[1,4], ['col_a',2]] - rows 1 and 4, columns col_a, col_val
+        First 10 rows and columns col_a, col_b:
+            >>> df[:10, ['col_a','col_b']]
+        Rows 1 and 4, colum col_a
+            >>> df[[1,4], ['col_a','col_b']]
+        Rows 0 and 3, all columns:
+        (recognizes that the list is of the same length as len(self))
+            >>> df[[True,False,False,True]]
+        Rows 1 and 4, columns col_a (by label) and 2 (by location):
+            >>> df[[1,4], ['col_a',2]]
         
         """
         all_cols_properties = {}
+        # Filter Rows only
+        # ---------------
         if isinstance(key,list) and len(key)==len(self):
             new_data_dict = {} # Store the selected data, then use it to create and return new DataFrame
-            new_cols = list(self.columns.keys())
+            new_cols = list(self.columns.keys()) # All columns
             # Extract row selector
             if isinstance(key,DataColumn):
                 row_selector = key.data
@@ -650,30 +999,25 @@ class DataFrame:
                     else:
                         new_data_dict[col_label] = self._data[col_idx][row_selector]
                     all_cols_properties[col_label] = self._data[col_idx]._get_all_properties()
-            # Extract index info so it can be passed to the new frame
-            if self.row_index_labels is not None:
-                new_row_index_labels = [col for col in self.row_index_labels if col in new_data_dict.keys()]
-            else:
-                new_row_index_labels = None
-            return DataFrame(new_data_dict,col_properties=all_cols_properties,row_index_labels=new_row_index_labels) # Do not replicate the same row_index as in self because it may be based on columns that were not selected.  row_index_labels is ok
+            # Create new df and re-index it
+            resulting_df = DataFrame(new_data_dict,col_properties=all_cols_properties).set_row_index(self.row_index_labels)
+            return resulting_df
+        # Filter Rows and Columns
+        # ----------------------
         elif isinstance(key,tuple):
             new_data_dict = {} # Store the selected data, then use it to create and return new DataFrame
             new_cols = []
-            use_all_cols = False
             # Extract row selector
             if isinstance(key[0],DataColumn):
                 row_selector = key[0].data
             else:
                 row_selector = key[0]
             # Extract column selector
-            ## If empty, use all columns
             try:
                 key[1]
             except:
-                use_all_cols=True
-            if use_all_cols:
-                new_cols = list(self.columns.keys())
-            elif isinstance(key[1],(list,tuple)):
+                raise ValueError("No column selector was provided. Delete comma?")
+            if isinstance(key[1],(list,tuple)):
                 # if column selector is iterable, extract values into new_cols list
                 new_cols = list(key[1])
             else:
@@ -688,9 +1032,10 @@ class DataFrame:
                 else:
                     raise TypeError("Column selector must contain str or int values.")
             # Extract data here
-            ## For each selected column...
+            ## Loop over columns, then select appropriate rows from each column
             for col_label, col_idx in self.columns.items():
                 if col_label in new_cols:
+                    # Filter rows:
                     if isinstance(row_selector,list):
                         if isinstance(row_selector[0],bool):
                             new_data_dict[col_label] = [x for x, is_selected in zip(self._data[col_idx],row_selector) if is_selected]
@@ -699,20 +1044,28 @@ class DataFrame:
                     else:
                         new_data_dict[col_label] = self._data[col_idx][row_selector]
                     all_cols_properties[col_label] = self._data[col_idx]._get_all_properties()
-            # Extract index info so it can be passed to the new frame
+            # Create new df and re-index it if any indices were kept:
+            resulting_df = DataFrame(new_data_dict,col_properties=all_cols_properties)
+            # If self had row_index and if any key columns are retained, reindex the resulting df:
             if self.row_index_labels is not None:
                 new_row_index_labels = [col for col in self.row_index_labels if col in new_data_dict.keys()]
-            else:
-                new_row_index_labels = None
-            return DataFrame(new_data_dict,col_properties=all_cols_properties,row_index_labels=new_row_index_labels) # Do not replicate the same row_index as in self because it may be based on columns that were not selected.  row_index_labels is ok
+                if len(new_row_index_labels)>0:
+                    resulting_df = resulting_df.set_row_index(new_row_index_labels)
+            return resulting_df
+        # Filter only one Column by location
+        # ----------------------------------
         elif isinstance(key, int):
             return DataColumn(self._data[key],col_properties=self._data[key]._get_all_properties())
+        # Filter only one Column by label
+        # -------------------------------
         elif isinstance(key, str):
             try:
                 col_idx = self.columns[key]
                 return DataColumn(self._data[col_idx],col_properties=self._data[col_idx]._get_all_properties())
             except ValueError:
                 raise KeyError(f"Column '{key}' not found")
+        # Filter Columns only
+        # -------------------
         elif isinstance(key, list):
             new_data_dict = {} # Store the selected data, then use it to create and return new DataFrame
             # extract values into new_cols list
@@ -730,19 +1083,26 @@ class DataFrame:
                 if col_idx in new_cols:
                     new_data_dict[col_label] = self._data[col_idx]
                     all_cols_properties[col_label] = self._data[col_idx]._get_all_properties()
-            # Extract index info so it can be passed to the new frame
+            # Create new df and re-index it if any indices were kept:
+            resulting_df = DataFrame(new_data_dict,col_properties=all_cols_properties)
+            # If self had row_index and if any key columns are retained, reindex the resulting df:
             if self.row_index_labels is not None:
                 new_row_index_labels = [col for col in self.row_index_labels if col in new_data_dict.keys()]
-            else:
-                new_row_index_labels = None
-            return DataFrame(new_data_dict,col_properties=all_cols_properties,row_index_labels=new_row_index_labels)
+                if len(new_row_index_labels)>0:
+                    resulting_df = resulting_df.set_row_index(new_row_index_labels)
+            return resulting_df
 
-    def __setitem__(self, key, new_col_values):
+    def __setitem__(self, key, new_column): ## will need to delete _update_col_lengths, make sure it creates new instance of column
         """
         Modify existing column or create new column.
         
-        New values must be either DataColumn, list, int, float, str, datetime, or bool."""
+        New values must be either DataColumn, list, int, float, str, datetime, or bool.
+        Setting dtype:
+        if DataColumn was provided, use the same dtype.  Otherwise base on the first value of new_column
+        
+        """
         required_col_len = len(self._data[0])
+        # Identify destination column
         if isinstance(key, str):
             col_label = key
             # If exists, find the column index, otherwise check if possible (corrent length) to create the column
@@ -750,6 +1110,7 @@ class DataFrame:
                 # Column exists
                 col_idx = self.columns[key]
             else:
+                # Creating new column
                 col_idx = len(self.columns) # b/c current length is 1 greater than current rightmost idn
                 self.columns[key] = len(self.columns)
                 self._data.append(DataColumn([None]*required_col_len))
@@ -758,25 +1119,29 @@ class DataFrame:
             col_label = list(self.columns.keys())[col_idx]
         else:
             raise TypeError("Key must be of the types 'Str' or 'Int'")
-        # DataColumn was provided
-        if isinstance(new_col_values, DataColumn):
-            if required_col_len != len(new_col_values):
+        # Create new column and set in _data
+        ## DataColumn was provided
+        if isinstance(new_column, DataColumn):
+            if required_col_len != len(new_column):
                 raise ValueError("Columns have incompatible lengths")
-            self._data[col_idx] = new_col_values
-        # List was provided
-        elif isinstance(new_col_values, list):
-            if required_col_len != len(new_col_values):
+            new_data = new_column.data
+            col_properties = new_column._get_all_properties()
+            self._data[col_idx] = DataColumn(new_data, col_properties=col_properties)
+        ## List was provided
+        elif isinstance(new_column, list):
+            if required_col_len != len(new_column):
                 raise ValueError("Columns have incompatible lengths")
+            col_properties = self._data[col_idx]._get_all_properties()
+            col_properties['dtype'] = type(new_column[0])
+            self._data[col_idx] = DataColumn(new_column,col_properties=col_properties)
+        ## Scalar was provided
+        elif isinstance(new_column,(int,str,float,bool,datetime.datetime,Category)):
             col_props = self._data[col_idx]._get_all_properties()
-            self._data[col_idx] = DataColumn(new_col_values,col_properties=col_props)
-        # Scalar was provided
-        elif isinstance(new_col_values,(int,str,float,bool,datetime,Category)):
-            col_props = self._data[col_idx]._get_all_properties()
-            self._data[col_idx] = DataColumn([new_col_values]*required_col_len,col_properties=col_props)
-        # Unacceptable type was provided
+            col_props['dtype'] = type(new_column)
+            self._data[col_idx] = DataColumn([new_column]*required_col_len,col_properties=col_props)
+        ## Unacceptable type was provided
         else:
             raise TypeError("New column values must be a list, DataColumn, Str, Int, Bool, or Datetime.")
-        self._update_col_lengths(col=col_label)
         return
         
     def __len__(self):
@@ -868,13 +1233,13 @@ class DataFrame:
                 col_width = self._data[col_idx].col_print_length
                 text_to_print = ""
                 if dtype==str:
-                    text_to_print = pretty_string(f"{'str':>{col_width}}",'magenta')
+                    text_to_print = _pretty_string(f"{'str':>{col_width}}",'magenta')
                 elif dtype==int or dtype==float:
-                    text_to_print = pretty_string(f"{'num':>{col_width}}",'green')
+                    text_to_print = _pretty_string(f"{'num':>{col_width}}",'green')
                 elif dtype==Category:
-                    text_to_print = pretty_string(f"{'C':>{col_width}}",'yellow') ########################### Need to specify whether dummiefied already or not and how many cats
+                    text_to_print = _pretty_string(f"{'C':>{col_width}}",'yellow') ########################### Need to specify whether dummiefied already or not and how many cats
                 else:
-                    text_to_print = pretty_string(f"{'UNK':>{col_width}}",'red')
+                    text_to_print = _pretty_string(f"{'UNK':>{col_width}}",'red')
                 print(text_to_print,end = ' | ')
             except:
                 pass
@@ -896,7 +1261,7 @@ class DataFrame:
             warning_string = " !" if sum(self._data[col_idx].isna())>0 else ""
             agg_funct_string = agg_funct_string[:(col_width-len(warning_string))] # shorten the string if necessary
             
-            text_to_print = f"{agg_funct_string:>{col_width-len(warning_string)}}"+pretty_string(warning_string,'red')
+            text_to_print = f"{agg_funct_string:>{col_width-len(warning_string)}}"+_pretty_string(warning_string,'red')
             print(text_to_print,end = ' | ')
             #except:
             #    pass
@@ -913,7 +1278,7 @@ class DataFrame:
                 if isinstance(col_val,float):
                     text_to_print=f"{col_val:>{col_width},.1f}"
                 elif col_val==None:
-                    text_to_print = pretty_string(f"{'--':>{col_width}}",'red')
+                    text_to_print = _pretty_string(f"{'--':>{col_width}}",'red')
                 elif isinstance(col_val,Category):
                     text_to_print=f"{col_val:>{col_width}}"
                 elif isinstance(col_val,str):
@@ -945,16 +1310,15 @@ class DataFrame:
         if not isinstance(new_properties, dict):
             raise TypeError(f"New_properies must be a dict")
         # Iterate over dict and set each column's property to the value
-        # Column properties are stored within this DataFrame, not with Column class
-        for col_name, prop_value in new_properties.items():
-            col_idx = self.columns[col_name]
-            self._data[col_idx]._set_properties({property_type:prop_value})
-            # In addition, if dtype was changed, cast the column into the new dtype
-            if property_type == 'dtype':
-                self._data[col_idx] = self._data[col_idx].as_type(prop_value)
-        return
+        new_data = self.as_dict()
+        new_col_properties = {}
+        for col_name, col_idx in self.columns.items():
+            new_col_properties[col_name] = self._data[col_idx]._get_all_properties()
+            if col_name in new_properties.keys():
+                new_col_properties[col_name][property_type] = new_properties[col_name] # bc returns new column
+        return DataFrame(new_data,col_properties=new_col_properties)
 
-    def set_short_col_names(self,new_names,promote_current_to_long_names=False):
+    def set_short_col_names(self,new_names,promote_current_to_long_names=False): # will need to delete _update_col_lengths and make sure this creates a new instance of column?
         """
         Set or update columns' short names.
 
@@ -990,7 +1354,7 @@ class DataFrame:
             # Sort columns dict according to column numbers, because the renaming operation above
             # has moved the renamed columns to the end of the dict
             self.columns = dict(sorted(self.columns.items(), key=lambda item: item[1]))
-            self._update_col_lengths()
+            #self._update_col_lengths()
         return
 
     def get_col_names(self):
@@ -1037,7 +1401,7 @@ class DataFrame:
         # Sort data according to the provided keys
         sorted_data=list(zip(*sorted(zip(*self.values()),key=lambda x: [x[col] for col in key_cols_idx])))
 
-        rows = NestedDict(assume_sorted=True)
+        rows = _DataIndex(assume_sorted=True)
         # Create index
         ## Iterate row at a time (i.e. iterate transposed data model)
         for i in range(len(self._data[0])):
@@ -1103,7 +1467,10 @@ class DataFrame:
                     current_values = self._data[col_idx][self.rows[key_values]]
                     if ignore_na:
                         current_values = [value for value in current_values if value is not None]
-                    new_value = self._data[col_idx].aggregation_func(current_values)
+                    if not current_values:
+                        new_value = None
+                    else:
+                        new_value = self._data[col_idx].aggregation_func(current_values)
                     new_data[col_idx].append(new_value)
             self.rows[key_values] = row_idx
             row_idx += 1
@@ -1150,13 +1517,13 @@ class DataFrame:
         else:
             return data_values
         
-    def dict(self):
+    def as_dict(self):
         """
         Returns a dict that represents this data frame
         """
         data_dict = {}
         for col_label, col_idx in self.columns.items():
-            data_dict[col_balel] = self._data[col_idx].data
+            data_dict[col_label] = self._data[col_idx].data
         return data_dict
 
     def join(self, other):
@@ -1173,7 +1540,7 @@ class DataFrame:
         # Get indices
         l_index = self.rows
         r_index = other.rows
-        joined_index = NestedDict(assume_sorted=True)
+        joined_index = _DataIndex(assume_sorted=True)
         # Helper:
         n_left_cols = len(l_col_labels)
         # Iterate overal all index keys and construct new data
@@ -1206,62 +1573,3 @@ class DataFrame:
             new_data_props[col_label] = other[col_label]._get_all_properties()
         return DataFrame(new_data_dict, col_properties=new_data_props)
 
-class NestedDict:
-    def __init__(self,assume_sorted:bool):
-        if not isinstance(assume_sorted,bool):
-            raise ValueError("assume_sorted must be provided as a bool")
-        self.assume_sorted = assume_sorted
-        self.data = defaultdict(lambda: None)
-        return
-
-    def __setitem__(self, keys, value):
-        """Build nested dictionary from keys list and value object
-
-        Each next key in keys will produce another nested dict key,
-        with the last key's value being assigned the value
-        as an element of a list.
-        If the exact specified keys already exist, the value will
-        be appended to the list value of the last key.
-        """
-        if len(keys)>1:
-            if not keys[0] in self.data:
-                self.data[keys[0]] = NestedDict(self.assume_sorted)
-            self.data[keys[0]][keys[1:]] = value
-        else:
-            if not self.assume_sorted:
-                # Collect list of indices
-                if isinstance(self.data[keys[0]] ,list):
-                    self.data[keys[0]].append(value)
-                else:
-                    self.data[keys[0]] = [value]
-            else:
-                # Build slicer objects
-                if isinstance(self.data[keys[0]] ,slice):
-                    self.data[keys[0]] = slice(self.data[keys[0]].start,value+1) # Replaces existing slice with new one by keeping the same start but modifying the end. This works because data is sorted
-                else:
-                    self.data[keys[0]] = slice(value,value+1)
-        return
-
-    def __getitem__(self, keys):
-        if len(keys)>1:
-            return self.data[keys[0]][keys[1:]]
-        else:
-            return self.data[keys[0]]
-
-    def labels(self):
-        return list(self.data.keys())
-
-    def list_levels(self, trail=[]):
-        """Generate list of allkey combinations.
-        
-        All, i.e. all levels', keys are returned as a nested list.
-        Each inner list contains the keys for each key column.
-        """
-        resulting_levels=[]
-        if isinstance(self.data[list(self.data.keys())[0]],NestedDict):
-            for key, nested_dict in self.data.items():
-                this_result = nested_dict.list_levels(trail=trail + [key])
-                resulting_levels.extend(this_result)
-        else:
-            resulting_levels = [trail + [key] for key in self.data.keys()]
-        return resulting_levels
