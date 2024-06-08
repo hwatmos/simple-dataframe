@@ -16,15 +16,20 @@ from collections import defaultdict
 import sys
 from io import StringIO
 from numbers import Number
-from typing import Callable
+from typing import Callable, Any, Iterable, Self
 
 # =========================================================================
 # Helper Functions
 # =========================================================================
 
-def nunique(values: list) -> int:
-    """Count of unique values"""
-    return len(set(values))
+def nunique(values: list, include_na: bool=True) -> int:
+    """Count of unique values, including NA by default"""
+    if include_na:
+        return len(set(values))
+    else:
+        my_set=set(values)
+        my_set.discard(None)
+        return len(my_set)
 
 def count(values: list) -> int:
     """Count non-missing values"""
@@ -80,7 +85,7 @@ def _is_iterable(obj: any) -> bool:
     except TypeError:
         return False
     
-def _element_wise_comparison(func: Callable, list_1: list[any], list_2: list[any]):
+def _element_wise_comparison(func: Callable, list_1: list[Any], list_2: list[Any]) -> list[bool]:
     """Compare list_1 and list_2 using func and return a list of Bool
 
     Takes Python lists, tuples, or DataColumns and outputs Python lists. list_2 may be a scalar.
@@ -99,8 +104,8 @@ def _element_wise_comparison(func: Callable, list_1: list[any], list_2: list[any
     else:
         raise TypeError("Can only compare against the types 'Int,' 'Float,' 'Str,' or 'List'")
 
-def _calc_col_print_length(col_data,col_label):
-    """Calculate how many characters are required to print column horizontally, based on its data"""
+def _calc_col_print_length(col_data: list[Any],col_label: str) -> int:
+    """Calculate how many characters are required to print column, based on its data and label"""
     if isinstance(col_label,str):
         new_len = max(len(col_label)+1, max([len(str(x))+1 for x in col_data]))
     else:
@@ -109,7 +114,7 @@ def _calc_col_print_length(col_data,col_label):
     new_len = max(new_len,_MIN_COL_PRINT_LEN)
     return new_len
 
-def _cast_list(values, new_type):
+def _cast_list(values: Any, new_type: Callable) -> Any:
     """Cast all values in a list to new_type. Return None for None."""
     casted_values = []
     for val in values:
@@ -281,7 +286,7 @@ class _DataIndex:
         ['a', 'b']
     
     """
-    def __init__(self,assume_sorted:bool,index_desc:dict=None):
+    def __init__(self,assume_sorted: bool,index_desc: dict=None) -> None:
         """
         Initiates empty instance of index.
 
@@ -301,7 +306,7 @@ class _DataIndex:
                 self[keys] = slicer
         return
 
-    def __setitem__(self, keys, dest_row_idx):
+    def __setitem__(self, keys: list[Any], dest_row_idx: int) -> None:
         """
         Builds the nested index for identifying rows in the data.
 
@@ -383,18 +388,18 @@ class _DataIndex:
                     self.data[keys[0]] = slice(dest_row_idx,dest_row_idx+1)
         return
 
-    def __getitem__(self, keys):
+    def __getitem__(self, keys: list[Any]) -> list[int] | slice:
         """Retrieves the slicer or list of indices using keys"""
         if len(keys)>1:
             return self.data[keys[0]][keys[1:]]
         else:
             return self.data[keys[0]]
 
-    def labels(self):
+    def labels(self) -> list[Any]:
         """Lists possible labels at the current level"""
         return list(self.data.keys())
 
-    def list_levels(self, _trail=[], include_slicers=False):
+    def list_levels(self, _trail: list[Any]=[], include_slicers: bool=False) -> list[Any]:
         """Generate list of allkey combinations.
         
         All, i.e. all levels', keys are returned as a nested list.
@@ -535,7 +540,7 @@ class DataColumn:
     Returns list [0,9].
 
     """
-    def __init__(self, data, col_properties:dict=None):
+    def __init__(self, data: Iterable, col_properties: dict=None) -> None:
         """
         Initiates new column.
         
@@ -600,7 +605,7 @@ class DataColumn:
         setattr(self, 'length', len(self.data))
         return
             
-    def set_properties(self, col_properties):
+    def set_properties(self, col_properties: dict[str, Any]) -> Self:
         """Returns new column with specified properties"""
         return DataColumn(self.data, col_properties)
 
