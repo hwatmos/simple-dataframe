@@ -870,7 +870,7 @@ class DataFrame:
     apply
 
     '''
-    def __init__(self,data=None,col_properties=None,row_index=None,row_index_labels=None):
+    def __init__(self,data: dict[str,Iterable]=None,col_properties: dict[str,dict]=None,row_index: _DataIndex=None,row_index_labels: list[str]=None) -> None:
         """
         Initiate new DataFrame, either empty or from values
         
@@ -938,7 +938,7 @@ class DataFrame:
             raise TypeError("Data must be of the type'Dict'")
         return
             
-    def read_csv(self, file_path): ###### NEEDS TO BE UPDATED.  If data already exists, should keep column properties but update data
+    def read_csv(self, file_path: str) -> None: ###### NEEDS TO BE UPDATED.  If data already exists, should keep column properties but update data
         """
         Read data from a csv file.
 
@@ -975,7 +975,7 @@ class DataFrame:
         del data;
         return
 
-    def to_csv(self, file_path):
+    def to_csv(self, file_path: str) -> None:
         """
         Store this frame's data into a csv file
         
@@ -987,7 +987,7 @@ class DataFrame:
             csv_writer.writerow(list(self.columns.keys()))
             csv_writer.writerows(self._data)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str | list[str] | list[slice | list,str | list] | list[bool]) -> Self | DataColumn:
         """
         Select elements from the DataFrame
 
@@ -1143,7 +1143,7 @@ class DataFrame:
                     resulting_df = resulting_df.set_row_index(new_row_index_labels)
             return resulting_df
 
-    def __setitem__(self, key, new_column): ## will need to delete _update_col_lengths, make sure it creates new instance of column
+    def __setitem__(self, key: str | int, new_column: DataColumn | list[Any] | Any) -> None: ## will need to delete _update_col_lengths, make sure it creates new instance of column
         """
         Modify existing column or create new column.
         
@@ -1195,10 +1195,10 @@ class DataFrame:
             raise TypeError("New column values must be a list, DataColumn, Str, Int, Bool, or Datetime.")
         return
         
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._data[0])
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         # Redirect stdout to a StringIO object
         stdout_backup = sys.stdout
         sys.stdout = StringIO()
@@ -1210,15 +1210,15 @@ class DataFrame:
         sys.stdout = stdout_backup
         return f"{captured_output}\nDataFrame with {len(self.columns)} columns and {len(self)} rows"
 
-    def __iter__(self):
+    def __iter__(self) -> Iterable:
         return iter(self._data)
 
-    def show(self,rows=5,show_index=True):
+    def show(self,rows: int | tuple[int,int]=5,show_index=True) -> str:
         """Print the requested rows of data.
 
         Parameters
         ----------
-        rows : int or list
+        rows : int or list or tuple
                If int, indicates how many top rows to print. 
                If list, must have format [first_row, n_rows].
         show_index : bool
@@ -1227,7 +1227,7 @@ class DataFrame:
         if isinstance(rows,int):
             start_row=0
             nrows=rows
-        else:
+        elif isinstance(rows, (list,tuple)):
             start_row=rows[0]
             nrows=rows[1]
         screen_max_x = 80
@@ -1341,7 +1341,7 @@ class DataFrame:
         # Return descriptive string
         return f"DataFrame with {len(self.columns)} columns and {len(self._data[0])} rows"
 
-    def set_property(self,property_type,new_properties):
+    def set_property(self,property_type: str,new_properties: dict[str,Any]) -> Self:
         """Set the values of a property for one or more columns.
 
         Parameters
@@ -1376,7 +1376,7 @@ class DataFrame:
             row_index_dict = None
         return DataFrame(new_data,col_properties=new_col_properties,row_index=row_index_dict,row_index_labels=row_index_labels)
 
-    def set_short_col_names(self,new_names,promote_current_to_long_names=False): # will need to delete _update_col_lengths and make sure this creates a new instance of column?
+    def set_short_col_names(self,new_names: dict[str,str],promote_current_to_long_names: bool=False) -> Self:
         """
         Set or update columns' short names.
 
@@ -1425,7 +1425,7 @@ class DataFrame:
             row_index_dict = None
         return DataFrame(new_data, col_properties=new_col_props, row_index=row_index_dict, row_index_labels=new_row_index_labels)
 
-    def get_col_names(self):
+    def get_col_names(self) -> dict[str,int]:
         """Get dict of column names  (short : long)"""
         col_names_dict = {}
         for col_short_name, col_idx in self.columns.items():
@@ -1435,7 +1435,7 @@ class DataFrame:
                 col_names_dict[col_short_name] = None
         return col_names_dict
 
-    def set_row_index(self,key_col_labels,return_index=False):
+    def set_row_index(self,key_col_labels: list[str],return_index: bool=False) -> Self | _DataIndex:
         """Builds the rows property based on the list of keys key_col_labels.
 
         The resulting rows property can be accessed via selector by listing
@@ -1499,7 +1499,7 @@ class DataFrame:
         else:
             return rows
 
-    def aggregate(self,ignore_na=False):
+    def aggregate(self,ignore_na: bool=False) -> Self:
         """Aggregates DataFrame using its keys.
 
         Keys must be set before aggregating. Aggregation_func property
@@ -1581,7 +1581,7 @@ class DataFrame:
        #    self._data[col_idx] = DataColumn(new_col_data,col_properties=new_col_props)
        #return
 
-    def values(self, transpose=False, skip_col_labels=[], return_labels=False):
+    def values(self, transpose: bool=False, skip_col_labels: list[str]=[], return_labels: bool=False) -> list[Any] | tuple[list[Any],list[str]]:
         """
         Returns a nested list of values.
 
@@ -1617,7 +1617,7 @@ class DataFrame:
         else:
             return data_values
         
-    def as_dict(self):
+    def as_dict(self) -> dict[str,list[Any]]:
         """
         Returns a dict that represents this data frame
         """
@@ -1626,7 +1626,7 @@ class DataFrame:
             data_dict[col_label] = self._data[col_idx].data
         return data_dict
 
-    def join(self, other):
+    def join(self, other: Self) -> Self:
         """
         Join other df to this using Left Join approach.
     
