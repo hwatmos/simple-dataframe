@@ -16,7 +16,7 @@ from collections import defaultdict
 import sys
 from io import StringIO
 from numbers import Number
-from typing import Callable, Any, Iterable, Self
+from typing import Callable, Any, Iterable, Self, Iterator
 
 # =========================================================================
 # Helper Functions
@@ -540,7 +540,7 @@ class DataColumn:
     Returns list [0,9].
 
     """
-    def __init__(self, data: Iterable, col_properties: dict=None) -> None:
+    def __init__(self, data: Iterable, col_properties: dict=None[str,Any]) -> None:
         """
         Initiates new column.
         
@@ -609,14 +609,14 @@ class DataColumn:
         """Returns new column with specified properties"""
         return DataColumn(self.data, col_properties)
 
-    def _get_property(self, property_name):
+    def _get_property(self, property_name: str) -> Any:
         """Extracts a property value"""
         try:
             return getattr(self,property_name,None)
         except:
             raise ValueError(f"Property {property_name} not found")
 
-    def _get_all_properties(self):
+    def _get_all_properties(self) -> dict[str,Any]:
         """
         Extracts all properties
         
@@ -629,13 +629,13 @@ class DataColumn:
             all_properties[prop] = self._get_property(prop)
         return all_properties
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: int) -> list[Any]:
         return self.data[key]
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self.length
 
-    def __add__(self, other):
+    def __add__(self, other: Self | int | float | Iterable) -> Self:
         if isinstance(other, int) or isinstance(other, float):
             col_properties = self._get_all_properties()
             col_properties['dtype'] = float if isinstance(other, float) else self._get_property('dtype')
@@ -648,7 +648,7 @@ class DataColumn:
         else:
             raise TypeError("Operands must be iterable or 'Int,' or 'Float'")
 
-    def __sub__(self, other):
+    def __sub__(self, other: Self | int | float | Iterable) -> Self:
         if isinstance(other, int) or isinstance(other, float):
             col_properties = self._get_all_properties()
             col_properties['dtype'] = float if isinstance(other, float) else self._get_property('dtype')
@@ -661,7 +661,7 @@ class DataColumn:
         else:
             raise TypeError("Operands must be iterable or 'Int,' or 'Float'")
 
-    def __mul__(self, other):
+    def __mul__(self, other: Self | int | float | Iterable) -> Self:
         if isinstance(other, int) or isinstance(other, float):
             col_properties = self._get_all_properties()
             col_properties['dtype'] = float if isinstance(other, float) else self._get_property('dtype')
@@ -674,7 +674,7 @@ class DataColumn:
         else:
             raise TypeError("Operands must be iterable or 'Int,' or 'Float'")
 
-    def __truediv__(self, other):
+    def __truediv__(self, other: Self | int | float | Iterable) -> Self:
         if isinstance(other, int) or isinstance(other, float):
             if other==0:
                 raise ValueError("Div by zero is not allowed")
@@ -691,29 +691,28 @@ class DataColumn:
         else:
             raise TypeError("Can only divide by the types 'Int,' or 'Float'")
 
-    def __eq__(self, other):
+    def __eq__(self, other: Self | int | float | Iterable) -> Self:
         return _element_wise_comparison(operator.eq,self, other)
 
-    def __lt__(self, other):
+    def __lt__(self, other: Self | int | float | Iterable) -> Self:
         return _element_wise_comparison(operator.lt,self, other)
 
-    def __le__(self, other):
-        
+    def __le__(self, other: Self | int | float | Iterable) -> Self:
         return _element_wise_comparison(operator.le,self, other)
 
-    def __ne__(self, other):
+    def __ne__(self, other: Self | int | float | Iterable) -> Self:
         
         return _element_wise_comparison(operator.ne,self, other)
 
-    def __ge__(self, other):
+    def __ge__(self, other: Self | int | float | Iterable) -> Self:
         
         return _element_wise_comparison(operator.ge,self, other)
 
-    def __gt__(self, other):
+    def __gt__(self, other: Self | int | float | Iterable) -> Self:
         
         return _element_wise_comparison(operator.gt,self, other)
         
-    def __repr__(self):
+    def __repr__(self) -> str:
         # Redirect stdout to a StringIO object
         stdout_backup = sys.stdout
         sys.stdout = StringIO()
@@ -725,80 +724,80 @@ class DataColumn:
         sys.stdout = stdout_backup
         return f"{captured_output}\nDataColumn of size {len(self)}"
 
-    def as_list(self):
+    def as_list(self) -> list[Any]:
         """Return this column's values as a list"""
         return list(self.data)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator:
         return iter(self.data)
 
-    def apply(self, func):
+    def apply(self, func: Callable) -> Self:
         """Map func onto this column's values"""
         return DataColumn(list(map(func,self.data)), col_properties=self._get_all_properties())
 
-    def sum(self):
+    def sum(self) -> int | float:
         """Return the sum of this column's values"""
         return sum(self.data)
 
-    def min(self):
+    def min(self) -> int | float:
         """Return the smallest of this column's values"""
         return min(self.data)
 
-    def max(self):
+    def max(self) -> int | float:
         """Return the largest of this column's values"""
         return max(self.data)
 
-    def mean(self):
+    def mean(self) -> int | float:
         """Return the mean of this column's values"""
         return statistics.mean(self.data)
 
-    def median(self):
+    def median(self) -> int | float:
         """Return the median of this column's values"""
         return statistics.median(self.data)
 
-    def median_low(self):
+    def median_low(self) -> int | float:
         """Return the low median of this column's values"""
         return statistics.median_low(self.data)
 
-    def median_high(self):
+    def median_high(self) -> int | float:
         """Return the high median of this column's values"""
         return statistics.median_high(self.data)
 
-    def mode(self):
+    def mode(self) -> int | float:
         """Return the mode of this column's values"""
         return statistics.mode(self.data)
 
-    def std(self):
+    def std(self) -> float:
         """Return the sample standard deviation of this column's values"""
         return statistics.stdev(self.data)
 
-    def var(self):
+    def var(self) -> float:
         """Return the sample variance of this column's values"""
         return statistics.variance(self.data)
 
-    def pstd(self):
+    def pstd(self) ->  float:
         """Return the population standard deviation of this column's values"""
         return statistics.pstdev(self.data)
 
-    def pvariance(self):
+    def pvariance(self) ->  float:
         """Return the population variance of this column's values"""
         return statistics.pvariance(self.data)
 
-    def cov(self,other):
+    def cov(self,other: Self) -> float:
         """Return the covariance of this column with other column"""
         if isinstance(other, DataColumn):
             return statistics.covariance(self.data,other.data)
         else:
             raise TypeError("Can only compare to another DataColumn")
 
-    def cor(self,other):
+    def cor(self,other: Self) -> float:
         """Return the correlation of this column with other column"""
         if isinstance(other, DataColumn):
             return statistics.correlation(self.data,other.data)
         else:
             raise TypeError("Can only compare to another DataColumn")
 
-    def lr(self,other):
+    def lr(self,other: Self) -> tuple[float,float]:
         """Linear regression against another column.
 
         Regress this column on another column and return slope and intercept.
@@ -811,7 +810,7 @@ class DataColumn:
         else:
             raise TypeError("Can only compare to another DataColumn")
 
-    def as_type(self, new_type):
+    def as_type(self, new_type: Any) -> Self:
         """Returns DataColumn equivalent to this but with values cast to new_type"""
         casted_values = []
         for val in self.data:
@@ -829,21 +828,21 @@ class DataColumn:
         col_properties['dtype'] = new_type
         return DataColumn(casted_values,col_properties=col_properties)
 
-    def isna(self):
+    def isna(self) -> list[bool]:
         """Return list of bools indicating missing values"""
         return list(map(lambda x: x==None,self.data))
 
-    def any_na(self):
+    def any_na(self) -> bool:
         """Return True if any value is None"""
         return any(map(lambda x: x == None,self.data))
 
-    def fillna(self,fill_val):
+    def fillna(self,fill_val: Any) -> Self:
         """Return DataColumn with fill_value in place of missing values"""
         new_values = list(map(lambda x: fill_val if x==None else x,self.data))
         col_properties = self._get_all_properties()
         return DataColumn(new_values,col_properties=col_properties)
 
-    def unique(self):
+    def unique(self) -> list[Any]:
         """Return list of all distinct values."""
         return(list(set(self.data)))
         
