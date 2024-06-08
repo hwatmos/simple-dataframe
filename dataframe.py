@@ -1,3 +1,12 @@
+"""
+Module Simple Dataframe.
+
+Project intended to provide a module for performing basic data science tasks
+while maintaining a simplistic code-base that relies only on standard Python
+libraries.  Transparency, clarity, simplicity are the focus.
+
+"""
+
 import csv
 import operator
 import itertools as it
@@ -7,20 +16,21 @@ from collections import defaultdict
 import sys
 from io import StringIO
 from numbers import Number
+from typing import Callable
 
 # =========================================================================
 # Helper Functions
 # =========================================================================
 
-def nunique(values: list):
+def nunique(values: list) -> int:
     """Count of unique values"""
     return len(set(values))
 
-def count(values: list):
+def count(values: list) -> int:
     """Count non-missing values"""
     return len(x for x in values if x is not None)
 
-def _pretty_string(string,color,length=None):
+def _pretty_string(string: str, color: str, length: int=None) -> str:
     """Trim to length and change color of provided string.
 
     Given string is first trimmed to requested length, then color
@@ -33,16 +43,20 @@ def _pretty_string(string,color,length=None):
     Parameters
     ----------
     string : str
-             String which will be returned trimmed and formatted.
+        String which will be returned trimmed and formatted.
     color : str
-            Color to apply to the string. Available colors are
-            red, green, yellow, blue, magenta, cyan.
+        Color to apply to the string. Available colors are
+        red, green, yellow, blue, magenta, cyan.
     length : int
-             Length to which the provided string will be trimmed
-             be removing characters from the right. This length
-             is for the visible characters only and does not count
-             the special formatting characters that are added
-             by this function.
+        Length to which the provided string will be trimmed
+        be removing characters from the right. This length
+        is for the visible characters only and does not count
+        the special formatting characters that are added
+        by this function.
+
+    Returns
+    -------
+    Decorated (colored) string.
 
     Example
     -------
@@ -58,15 +72,15 @@ def _pretty_string(string,color,length=None):
     else:
         return f"\033[{_colors_dict[color]}m{string[:length]}\033[0m"
     
-def _is_iterable(obj):
-    """Check whether obj is iterable."""
+def _is_iterable(obj: any) -> bool:
+    """Check whether obj is iterable and return True/False."""
     try:
         iter(obj)
         return True
     except TypeError:
         return False
-
-def _element_wise_comparison(func, list_1, list_2):
+    
+def _element_wise_comparison(func: Callable, list_1: list[any], list_2: list[any]):
     """Compare list_1 and list_2 using func and return a list of Bool
 
     Takes Python lists, tuples, or DataColumns and outputs Python lists. list_2 may be a scalar.
