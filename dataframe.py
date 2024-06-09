@@ -478,38 +478,40 @@ class DataColumn:
     Attributes
     ----------
     data : list
-           Ordered ist of values belonging to this column.
+        Ordered ist of values belonging to this column.
     dtype : data type
-            The type of the data in this column. For example
-            str, int, Category.
+        The type of the data in this column. For example
+        str, int, Category.
     long_name : str
-                Long name of the column intended for human
-                understanding. Long_names can be useful
-                for interpreting each column as the names
-                that arae printed by DataFrame by default
-                are short names and should emphasize brevity
-                over meaningfulness.
+        Long name of the column intended for human
+        understanding. Long_names can be useful
+        for interpreting each column as the names
+        that arae printed by DataFrame by default
+        are short names and should emphasize brevity
+        over meaningfulness.
     col_print_length : int
-                The lengh (in number of characters) used when
-                printing this column. Column label and values
-                will be truncated to fit this length. 
-                Calculaated by considering the min and max
-                column widths as well as the column name
-                and all values in the column.
+        The lengh (in number of characters) used when
+        printing this column. Column label and values
+        will be truncated to fit this length. 
+        Calculaated by considering the min and max
+        column widths as well as the column name
+        and all values in the column.
     key : bool
-          Boolean value indicating whether this column
-          is a key or not. Key columns may not have missing 
-          values and are used by the DataFrame for aggregations.
-          Key columns are ignored when DataFrame exports data
-          for analysis by default.
+        Boolean value indicating whether this column
+        is a key or not. Key columns may not have missing 
+        values and are used by the DataFrame for aggregations.
+        Key columns are ignored when DataFrame exports data
+        for analysis by default.
     aggregation_func : callable
-                A callable that must accept an iterable
-                and return a single value. This is used 
-                by DataFrame to aggregate the data.
+        A callable that must accept an iterable
+        and return a single value. This is used 
+        by DataFrame to aggregate the data.
 
     Methods
     -------
-    apply(func)
+    set_properties(col_properties: dict[str, Any])
+    as_list()
+    apply(func: Callable)
     sum()
     min()
     max()
@@ -522,13 +524,13 @@ class DataColumn:
     var()
     pstd()
     pvariance()
-    cov()
-    cor()
-    lr(other)
-    set_type(new_type)
+    cov(other: DataColumn)
+    cor(other: DataColumn)
+    lr(other: DataColumn)
+    as_type(new_type: Any)
     isna()
-    fillna()
     any_na()
+    fillna(fill_val: Any)
     unique()
 
     Examples
@@ -552,10 +554,10 @@ class DataColumn:
         Parameters
         ----------
         data : list
-               List of the column's values.
+            List of the column's values.
         col_properties : dict
-               Property: value pairs. Currently utilized properties
-               are listed in ALLOWED_COL_PROPERTIES.
+            Property: value pairs. Currently utilized properties
+            are listed in ALLOWED_COL_PROPERTIES.
         
         """
         # Check that col_properties has been correctly specified:
@@ -855,13 +857,13 @@ class DataFrame:
     Attributes
     ----------
     rows : DataIndex
-           DataIndex object used for indexing this frame's data.
+        DataIndex object used for indexing this frame's data.
     row_index_labels : list of str
-                       Ordered list of labels of columns which were
-                       used to build the rows index.
+        Ordered list of labels of columns which were
+        used to build the rows index.
     _data
     columns : dict
-              Label - index pairs for columns in this data frame.
+        Label - index pairs for columns in this data frame.
 
     Functions
     ---------
@@ -952,7 +954,7 @@ class DataFrame:
         Parameters
         ----------
         file_path : str
-                    Path to a csv file.
+            Path to a csv file.
         
         """
         # Make sure this frame is empty
@@ -1219,10 +1221,10 @@ class DataFrame:
         Parameters
         ----------
         rows : int or list or tuple
-               If int, indicates how many top rows to print. 
-               If list, must have format [first_row, n_rows].
+            If int, indicates how many top rows to print. 
+            If list, must have format [first_row, n_rows].
         show_index : bool
-                     Whether to print index.
+            Whether to print index.
         """
         if isinstance(rows,int):
             start_row=0
@@ -1347,12 +1349,12 @@ class DataFrame:
         Parameters
         ----------
         property_type : str
-                        Name of the property to be set/changed
+            Name of the property to be set/changed
         new_properties : dict
-                         A dict of the form short_col_label : value
-                         to be used as the mapping of new values for
-                         the property for the column indicated
-                         by the dict's key
+            A dict of the form short_col_label : value
+            to be used as the mapping of new values for
+            the property for the column indicated
+            by the dict's key
         """
         # Check that this is a property that can be set/modified:
         if property_type not in ALLOWED_COL_PROPERTIES:
@@ -1388,10 +1390,10 @@ class DataFrame:
         Parameters
         ----------
         new_names : dict
-                    Dictionary of current and new names.
+            Dictionary of current and new names.
         promote_current_to_long_names : bool
-                                        Whether to promote the current short names 
-                                        to new long names. Default: False.
+            Whether to promote the current short names 
+            to new long names. Default: False.
 
         """
         # Make sure dict was passed
@@ -1590,14 +1592,14 @@ class DataFrame:
         Parameters
         ----------
         transpose : Boolean
-                    If True, will transpose to n_rows x n_cols.
-                    Default False.
+            If True, will transpose to n_rows x n_cols.
+            Default False.
         skip_col_labels : List of strings
-                          List of which columns to exclude from
-                          the output.  Defaults to [] (empty list).
+            List of which columns to exclude from
+            the output.  Defaults to [] (empty list).
         return_labels : Bool
-                        Whether also to return list of labels of columns
-                        which were actually returns. Default False
+            Whether also to return list of labels of columns
+            which were actually returns. Default False
 
         Returns
         -------
