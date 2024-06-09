@@ -540,7 +540,7 @@ class DataColumn:
     Returns list [0,9].
 
     """
-    def __init__(self, data: Iterable, col_properties: dict=None[str,Any]) -> None:
+    def __init__(self, data: Iterable, col_properties: dict[str,Any]=None) -> None:
         """
         Initiates new column.
         
