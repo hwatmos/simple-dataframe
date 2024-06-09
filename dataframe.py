@@ -193,9 +193,9 @@ _colors_dict = {
 # Helper Classes
 # =========================================================================
 
-# Experimental _IndexSlice class planned for future use with _DataIndex to implement
+# Experimental _IndexSlice class planned for future use with DataIndex to implement
 # a custom, mutable, slicer with in-place addition operator.
-# (Needed so that _DataIndex assignment operation is a true assignment instead
+# (Needed so that DataIndex assignment operation is a true assignment instead
 # of the current append operation.)
 #class _IndexSlice:
 #    """
@@ -231,13 +231,13 @@ _colors_dict = {
 #    def __call__(self):
 #        return slice(self.start, self.stop)
 
-class _DataIndex:
+class DataIndex:
     """
     Class that builds the index used for addressing rows of DataColumns stored in DataFrame
 
     Warning!
     --------
-    _DataIndex implements an unusual assignment operator
+    DataIndex implements an unusual assignment operator
     via __setitem__ which adds on the passed value dest_row_idx
     to the existing slicer or list. This behavior may be updated
     in the future.
@@ -312,7 +312,7 @@ class _DataIndex:
 
         Warning!
         --------
-        _DataIndex implements an unusual assignment operator
+        DataIndex implements an unusual assignment operator
         via __setitem__ which adds on the passed value dest_row_idx
         to the existing slicer or list.  This behavior may be updated
         in the future.
@@ -348,7 +348,7 @@ class _DataIndex:
             >>> }
             >>> df = DataFrame(data)
         Create index:
-            >>> df.rows = _DataIndex(assume_sorted=True)
+            >>> df.rows = DataIndex(assume_sorted=True)
         Add key ['A','a'] to the index and assign the two rows
         that have these values in columns col_a and col_b:
             >>> df.rows['A','a'] += 0
@@ -359,13 +359,13 @@ class _DataIndex:
 
         """
         # keys is a list of values where each value corresponds to the next consecutive index level
-        # for example, if keys == ['A','a',3], it is assumed that _DataIndex has three-level nested
+        # for example, if keys == ['A','a',3], it is assumed that DataIndex has three-level nested
         # dicts.  This function works recursively, at each recursion taking the first value and using
         # it as the key and pussing the remaining elements to the nested dict.
         if len(keys)>1:
             # Haven't reached the last key/ inner-most dict, thus call recursively the next level 
             if not keys[0] in self.data:
-                self.data[keys[0]] = _DataIndex(self.assume_sorted)
+                self.data[keys[0]] = DataIndex(self.assume_sorted)
             self.data[keys[0]][keys[1:]] = dest_row_idx
         else:
             # Reached the inner-most dict, decide whether to use list or custom slicer
@@ -426,7 +426,7 @@ class _DataIndex:
 
         """
         resulting_levels=[]
-        if isinstance(self.data[list(self.data.keys())[0]],_DataIndex):
+        if isinstance(self.data[list(self.data.keys())[0]],DataIndex):
             for key, nested_dict in self.data.items():
                 this_result = nested_dict.list_levels(_trail=_trail + [key], include_slicers=include_slicers)
                 resulting_levels.extend(this_result)
@@ -854,7 +854,7 @@ class DataFrame:
 
     Attributes
     ----------
-    rows : _DataIndex
+    rows : DataIndex
            DataIndex object used for indexing this frame's data.
     row_index_labels : list of str
                        Ordered list of labels of columns which were
@@ -870,7 +870,7 @@ class DataFrame:
     apply
 
     '''
-    def __init__(self,data: dict[str,Iterable]=None,col_properties: dict[str,dict]=None,row_index: _DataIndex=None,row_index_labels: list[str]=None) -> None:
+    def __init__(self,data: dict[str,Iterable]=None,col_properties: dict[str,dict]=None,row_index: DataIndex=None,row_index_labels: list[str]=None) -> None:
         """
         Initiate new DataFrame, either empty or from values
         
@@ -889,10 +889,10 @@ class DataFrame:
         col_properties : dict {str : dict}
             For each column, provided a dict of column
             properties. Defaults to None.
-        row_index : dict | _DataIndex
+        row_index : dict | DataIndex
             Used to recreate the index from a dict, or to assign
             an existing index. Warning: exercise caution when
-            passing an existing index as the passed _DataIndex
+            passing an existing index as the passed DataIndex
             will not be re-created but referenced instead.
         row_index_labels : list
             List of labels, ordered, that were used to create 
@@ -902,7 +902,7 @@ class DataFrame:
         col_properties_provided = isinstance(col_properties,dict)
         values_len = -1
         # Initiate values for DataFrame attributes
-        self.rows = _DataIndex(assume_sorted=True)
+        self.rows = DataIndex(assume_sorted=True)
         self._data = []
         self.columns = {} # keys are short names; col_properties includes long_name
         self.row_index_labels = []
@@ -926,12 +926,12 @@ class DataFrame:
                 # Add column to columns dict
                 self.columns[key] = col_idx
                 col_idx += 1
-            if isinstance(row_index,_DataIndex):
+            if isinstance(row_index,DataIndex):
                 # Use the provided index (assumes programmer knows what they are doing here as this creates reference to whatever index was passed...)
                 self.rows = row_index
             elif isinstance(row_index,dict):
                 # Recreates the index based on the provided dict
-                self.rows = _DataIndex(assume_sorted=True,index_desc=row_index)
+                self.rows = DataIndex(assume_sorted=True,index_desc=row_index)
             if isinstance(row_index_labels,list):
                 self.row_index_labels = row_index_labels
         else:
@@ -1435,7 +1435,7 @@ class DataFrame:
                 col_names_dict[col_short_name] = None
         return col_names_dict
 
-    def set_row_index(self,key_col_labels: list[str],return_index: bool=False) -> Self | _DataIndex:
+    def set_row_index(self,key_col_labels: list[str],return_index: bool=False) -> Self | DataIndex:
         """Builds the rows property based on the list of keys key_col_labels.
 
         The resulting rows property can be accessed via selector by listing
@@ -1469,7 +1469,7 @@ class DataFrame:
         # Sort data according to the provided keys
         sorted_data=list(zip(*sorted(zip(*self.values()),key=lambda x: [x[col] for col in key_cols_idx])))
 
-        rows = _DataIndex(assume_sorted=True)
+        rows = DataIndex(assume_sorted=True)
         # Create index
         ## Iterate row at a time (i.e. iterate transposed data model)
         for i in range(len(self._data[0])):
@@ -1493,7 +1493,7 @@ class DataFrame:
                 new_data[value_col_label] = col_data
                 new_col_properties[value_col_label] = col_props
                 col_idx +=1
-            # Potential efficiency increase -- should df __init__ take _DataIndex as argument in addition to a dict?
+            # Potential efficiency increase -- should df __init__ take DataIndex as argument in addition to a dict?
             resulting_data_frame = DataFrame(new_data,col_properties=new_col_properties,row_index=rows,row_index_labels=key_col_labels)
             return resulting_data_frame
         else:
@@ -1522,7 +1522,7 @@ class DataFrame:
                 if self._data[col_idx].any_na():
                     raise ValueError(f"Missing value in column {col_name}")
         new_data_dict = {}
-        new_rows_index = _DataIndex(assume_sorted=True,index_desc=self.rows.as_dict())
+        new_rows_index = DataIndex(assume_sorted=True,index_desc=self.rows.as_dict())
         new_rows_index_labels = list(self.row_index_labels)
         new_col_props ={}
         for col_label, col_idx in self.columns.items():
